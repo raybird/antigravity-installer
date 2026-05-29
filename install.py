@@ -3,6 +3,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -190,7 +191,12 @@ def install_product(product: str, bundle: str) -> None:
         BIN.mkdir(parents=True, exist_ok=True)
         if cfg["command"].exists() or cfg["command"].is_symlink():
             cfg["command"].unlink()
-        cfg["command"].symlink_to(binary)
+        launch_flags = "--ozone-platform=x11 --disable-vulkan"
+        cfg["command"].write_text(
+            "#!/bin/sh\n"
+            f"exec {shlex.quote(str(binary))} {launch_flags} \"$@\"\n"
+        )
+        cfg["command"].chmod(0o755)
 
         ICONS.mkdir(parents=True, exist_ok=True)
         shutil.copy2(icon_staged, cfg["icon"])

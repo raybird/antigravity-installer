@@ -26,7 +26,7 @@ This file records the local machine state at the time Antigravity IDE and Antigr
 
 ## Installed Antigravity Products
 
-- Antigravity 2.0 app download marker: `2.0.6`
+- Antigravity 2.0 app download marker: `2.0.10`
 - Antigravity IDE download marker: `stable`
 - Antigravity IDE product base version observed in `product.json`: `1.107.0`
 
@@ -34,8 +34,8 @@ This file records the local machine state at the time Antigravity IDE and Antigr
 
 - Antigravity app: `/opt/antigravity/Antigravity-x64`
 - Antigravity IDE: `/opt/antigravity-ide/Antigravity-IDE`
-- App command: `/usr/local/bin/antigravity -> /opt/antigravity/Antigravity-x64/antigravity`
-- IDE command: `/usr/local/bin/antigravity-ide -> /opt/antigravity-ide/Antigravity-IDE/antigravity-ide`
+- App command wrapper: `/usr/local/bin/antigravity` runs `/opt/antigravity/Antigravity-x64/antigravity --ozone-platform=x11 --disable-vulkan`
+- IDE command wrapper: `/usr/local/bin/antigravity-ide` runs `/opt/antigravity-ide/Antigravity-IDE/antigravity-ide --ozone-platform=x11 --disable-vulkan`
 - App desktop entry: `/usr/share/applications/antigravity.desktop`
 - IDE desktop entry: `/usr/share/applications/antigravity-ide.desktop`
 - App icon: `/usr/share/icons/hicolor/512x512/apps/antigravity.png`
@@ -90,7 +90,7 @@ Both binaries were smoke-tested by launching them under `timeout`.
 
 Observed App startup:
 
-- App version printed in logs: `v2.0.6`
+- App version printed in logs: `v2.0.10`
 - Local server started on a dynamic `https://127.0.0.1:<port>/`
 - Logs path: `<HOME>/.config/Antigravity/logs/`
 

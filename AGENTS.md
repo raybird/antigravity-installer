@@ -44,12 +44,13 @@ For a fresh Ubuntu x86_64 machine:
    sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app
    ```
 
-7. Verify command targets:
+7. Verify command wrappers:
 
    ```bash
    which antigravity
    which antigravity-ide
    ls -l /usr/local/bin/antigravity /usr/local/bin/antigravity-ide
+   head -5 /usr/local/bin/antigravity /usr/local/bin/antigravity-ide
    ```
 
 8. Verify Electron sandbox permissions:

@@ -15,11 +15,11 @@ On this machine, the preferred installation is system-wide:
 
 - Antigravity app: `/opt/antigravity/Antigravity-x64`
 - Antigravity IDE: `/opt/antigravity-ide/Antigravity-IDE`
-- Commands: `/usr/local/bin/antigravity`, `/usr/local/bin/antigravity-ide`
+- Command wrappers: `/usr/local/bin/antigravity`, `/usr/local/bin/antigravity-ide`
 - Desktop entries: `/usr/share/applications/antigravity.desktop`, `/usr/share/applications/antigravity-ide.desktop`
 - Icons: `/usr/share/icons/hicolor/512x512/apps/`
 
-The installer also sets Electron `chrome-sandbox` to root-owned `4755` during system install.
+The installer also sets Electron `chrome-sandbox` to root-owned `4755` during system install. Command wrappers launch with `--ozone-platform=x11 --disable-vulkan` to avoid GNOME Wayland/Vulkan startup issues observed on Ubuntu 24.04.
 
 ## Requirements
 
@@ -84,12 +84,13 @@ These can be removed manually after the new version is confirmed working.
 
 ## Verify
 
-Check command targets:
+Check command wrappers:
 
 ```bash
 which antigravity
 which antigravity-ide
 ls -l /usr/local/bin/antigravity /usr/local/bin/antigravity-ide
+head -5 /usr/local/bin/antigravity /usr/local/bin/antigravity-ide
 ```
 
 Check sandbox permissions:
