@@ -61,6 +61,7 @@ PRODUCTS = {
         "comment": "Google Antigravity IDE",
         "startup_wm_class": "Antigravity IDE",
         "binary": "antigravity-ide",
+        "command_binary": "bin/antigravity-ide",
     },
 }
 
@@ -135,6 +136,7 @@ def install_product(product: str, bundle: str) -> None:
     top = cfg.get("install_top", cfg["expected_top"])
     target_dir = root / top
     binary = target_dir / cfg["binary"]
+    command_binary = target_dir / cfg.get("command_binary", cfg["binary"])
 
     print(f"Downloading {cfg['name']} {version}...")
     with tempfile.TemporaryDirectory(prefix=f"antigravity-{product}.") as tmp:
@@ -163,6 +165,9 @@ def install_product(product: str, bundle: str) -> None:
         if not launcher.exists():
             candidates = list(extracted.glob("antigravity*"))
             raise SystemExit(f"Launcher not found. Candidates: {candidates}")
+        command_launcher = extracted / cfg.get("command_binary", cfg["binary"])
+        if not command_launcher.exists():
+            raise SystemExit(f"Command launcher not found: {command_launcher}")
 
         staged = root.with_suffix(".new")
         if staged.exists():
@@ -191,10 +196,10 @@ def install_product(product: str, bundle: str) -> None:
         BIN.mkdir(parents=True, exist_ok=True)
         if cfg["command"].exists() or cfg["command"].is_symlink():
             cfg["command"].unlink()
-        launch_flags = "--ozone-platform=x11 --disable-vulkan"
+        launch_flags = "--ozone-platform=x11"
         cfg["command"].write_text(
             "#!/bin/sh\n"
-            f"exec {shlex.quote(str(binary))} {launch_flags} \"$@\"\n"
+            f"exec {shlex.quote(str(command_binary))} {launch_flags} \"$@\"\n"
         )
         cfg["command"].chmod(0o755)
 

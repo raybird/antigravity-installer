@@ -19,7 +19,7 @@ On this machine, the preferred installation is system-wide:
 - Desktop entries: `/usr/share/applications/antigravity.desktop`, `/usr/share/applications/antigravity-ide.desktop`
 - Icons: `/usr/share/icons/hicolor/512x512/apps/`
 
-The installer also sets Electron `chrome-sandbox` to root-owned `4755` during system install. Command wrappers launch with `--ozone-platform=x11 --disable-vulkan` to avoid GNOME Wayland/Vulkan startup issues observed on Ubuntu 24.04.
+The installer also sets Electron `chrome-sandbox` to root-owned `4755` during system install. Command wrappers launch with `--ozone-platform=x11` to avoid GNOME Wayland/Vulkan startup issues observed on Ubuntu 24.04. The IDE wrapper calls the official `bin/antigravity-ide` CLI so `antigravity-ide .` returns control to the terminal after handing the request to the IDE.
 
 ## Requirements
 

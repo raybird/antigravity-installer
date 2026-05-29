@@ -34,8 +34,8 @@ This file records the local machine state at the time Antigravity IDE and Antigr
 
 - Antigravity app: `/opt/antigravity/Antigravity-x64`
 - Antigravity IDE: `/opt/antigravity-ide/Antigravity-IDE`
-- App command wrapper: `/usr/local/bin/antigravity` runs `/opt/antigravity/Antigravity-x64/antigravity --ozone-platform=x11 --disable-vulkan`
-- IDE command wrapper: `/usr/local/bin/antigravity-ide` runs `/opt/antigravity-ide/Antigravity-IDE/antigravity-ide --ozone-platform=x11 --disable-vulkan`
+- App command wrapper: `/usr/local/bin/antigravity` runs `/opt/antigravity/Antigravity-x64/antigravity --ozone-platform=x11`
+- IDE command wrapper: `/usr/local/bin/antigravity-ide` runs `/opt/antigravity-ide/Antigravity-IDE/bin/antigravity-ide --ozone-platform=x11`
 - App desktop entry: `/usr/share/applications/antigravity.desktop`
 - IDE desktop entry: `/usr/share/applications/antigravity-ide.desktop`
 - App icon: `/usr/share/icons/hicolor/512x512/apps/antigravity.png`
