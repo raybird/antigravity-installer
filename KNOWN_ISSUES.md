@@ -29,7 +29,6 @@ Observed cases:
 - Running `antigravity .` from a project directory does not open that directory in the App.
 - Closing the App window and launching again can fail to show a window.
 - Using the tray icon `Quit` and launching again can still fail to show a window.
-- `antigravity-restart` can recover by killing the stale App process and starting a fresh one.
 
 ### What Was Ruled Out
 
@@ -76,38 +75,15 @@ antigravity .
 
 In practice, the `.` argument appears to be ignored or only participates in Electron single-instance handoff. Use the App UI to select/create projects, and use `antigravity-ide .` when the goal is to open a repository in the IDE.
 
-### Workaround
+### Current Workaround
 
-Use:
-
-```bash
-antigravity-restart
-```
-
-This helper kills only the Antigravity 2.0 App process and its standalone App language server, then starts the App again. It intentionally does not kill Antigravity IDE.
-
-The helper is safe after a reboot: if there is no existing App process, the `pkill` commands are ignored and the App starts normally after a short delay.
+No restart helper is currently installed because the stale-process diagnosis is not confirmed.
 
 For foreground debugging:
 
 ```bash
 ANTIGRAVITY_FOREGROUND=1 antigravity --enable-logging=stderr --v=0
 ```
-
-### Menu Icon Recommendation
-
-If the desktop menu icon appears unreliable, point the App desktop launcher to:
-
-```desktop
-Exec=/usr/local/bin/antigravity-restart %U
-```
-
-Tradeoff:
-
-- More reliable when the App is stale or hidden.
-- Clicking the icon while the App is already running restarts the App instead of merely focusing it.
-
-Do not apply this behavior to Antigravity IDE; the IDE CLI wrapper already behaves more predictably.
 
 ### Upstream Expectation
 

@@ -109,12 +109,6 @@ antigravity
 antigravity-ide
 ```
 
-If the App appears not to open while an existing background instance is present, restart only the App without touching the IDE:
-
-```bash
-antigravity-restart
-```
-
 For foreground debugging logs:
 
 ```bash

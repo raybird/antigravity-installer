@@ -71,12 +71,6 @@ For a fresh Ubuntu x86_64 machine:
    antigravity-ide
    ```
 
-   If the App appears not to open because an existing background instance is stale or hidden, use:
-
-   ```bash
-   antigravity-restart
-   ```
-
    For foreground App debugging logs, use:
 
    ```bash

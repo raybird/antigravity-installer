@@ -229,15 +229,7 @@ Reproduction showed that IDE and App do not share the same Electron profile:
 
 So this does not look like a direct profile lock conflict between IDE and App.
 
-The more likely explanation is Electron single-instance behavior for the App. If an App instance is already running in the background, running `antigravity` again can return immediately and only try to focus the existing window. If that window is hidden, on another workspace, or in a bad state, it looks like the App failed to open.
-
-To make this easier to recover from, the installer creates:
-
-```bash
-antigravity-restart
-```
-
-That helper kills only the Antigravity 2.0 App process and its standalone App language server, then starts the App again. It intentionally does not kill Antigravity IDE.
+One possible explanation was Electron single-instance behavior for the App. If an App instance is already running in the background, running `antigravity` again can return immediately and only try to focus the existing window. That diagnosis is not confirmed, so the installer no longer creates a restart helper.
 
 The App wrapper is also detached by default, so running this from a terminal returns immediately:
 
