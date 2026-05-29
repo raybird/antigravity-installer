@@ -7,7 +7,7 @@ Small installer for Google Antigravity on Linux x64. It reads the current offici
 
 This script was created because the legacy APT package named `antigravity` can lag behind the new Antigravity 2.0 product split and can conflict with the new `antigravity` command.
 
-See also [`INSTALLATION.md`](./INSTALLATION.md) for the redacted OS, runtime, version, and install state captured during setup, and [`INSTALL_NOTES.md`](./INSTALL_NOTES.md) for the installation narrative and troubleshooting history.
+See also [`INSTALLATION.md`](./INSTALLATION.md) for the redacted OS, runtime, version, and install state captured during setup, [`INSTALL_NOTES.md`](./INSTALL_NOTES.md) for the installation narrative and troubleshooting history, and [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) for current Linux-specific issues and workarounds.
 
 ## Current Machine Layout
 
