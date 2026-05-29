@@ -39,6 +39,7 @@ PRODUCTS = {
         "expected_top": "Antigravity-x64",
         "install_root": OPT / "antigravity",
         "command": BIN / "antigravity",
+        "restart_command": BIN / "antigravity-restart",
         "desktop": APPS / "antigravity.desktop",
         "icon": ICONS / "antigravity.png",
         "name": "Antigravity",
@@ -197,11 +198,32 @@ def install_product(product: str, bundle: str) -> None:
         if cfg["command"].exists() or cfg["command"].is_symlink():
             cfg["command"].unlink()
         launch_flags = "--ozone-platform=x11"
-        cfg["command"].write_text(
-            "#!/bin/sh\n"
-            f"exec {shlex.quote(str(command_binary))} {launch_flags} \"$@\"\n"
-        )
+        if product == "app":
+            cfg["command"].write_text(
+                "#!/bin/sh\n"
+                "if [ \"${ANTIGRAVITY_FOREGROUND:-}\" = \"1\" ]; then\n"
+                f"  exec {shlex.quote(str(command_binary))} {launch_flags} \"$@\"\n"
+                "fi\n"
+                f"setsid {shlex.quote(str(command_binary))} {launch_flags} \"$@\" >/tmp/antigravity-launch.log 2>&1 &\n"
+            )
+        else:
+            cfg["command"].write_text(
+                "#!/bin/sh\n"
+                f"exec {shlex.quote(str(command_binary))} {launch_flags} \"$@\"\n"
+            )
         cfg["command"].chmod(0o755)
+        if product == "app":
+            restart_command = cfg["restart_command"]
+            if restart_command.exists() or restart_command.is_symlink():
+                restart_command.unlink()
+            restart_command.write_text(
+                "#!/bin/sh\n"
+                "pkill -f '/opt/antigravity/Antigravity-x64/antigravity' 2>/dev/null || true\n"
+                "pkill -f 'language_server --standalone --override_ide_name antigravity' 2>/dev/null || true\n"
+                "sleep 1\n"
+                f"exec {shlex.quote(str(cfg['command']))} \"$@\"\n"
+            )
+            restart_command.chmod(0o755)
 
         ICONS.mkdir(parents=True, exist_ok=True)
         shutil.copy2(icon_staged, cfg["icon"])

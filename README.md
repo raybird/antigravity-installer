@@ -109,6 +109,18 @@ antigravity
 antigravity-ide
 ```
 
+If the App appears not to open while an existing background instance is present, restart only the App without touching the IDE:
+
+```bash
+antigravity-restart
+```
+
+For foreground debugging logs:
+
+```bash
+ANTIGRAVITY_FOREGROUND=1 antigravity --enable-logging=stderr --v=0
+```
+
 ## User Data and Backups
 
 The installer does not delete user data. Existing settings, sessions, browser profile data, and migration state may live under paths such as:

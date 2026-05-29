@@ -215,3 +215,38 @@ For another Ubuntu x86_64 machine:
 
 5. Verify wrappers, sandbox permissions, and startup.
 6. If the IDE MCP page is empty, check whether the old config exists at `~/.gemini/antigravity/mcp_config.json` and whether the new config at `~/.gemini/config/mcp_config.json` is empty.
+
+## IDE Open, App Appears Not To Open
+
+A later observation was that after Antigravity IDE was already open, running `antigravity` could appear to do nothing.
+
+Reproduction showed that IDE and App do not share the same Electron profile:
+
+```text
+~/.config/Antigravity IDE
+~/.config/Antigravity
+```
+
+So this does not look like a direct profile lock conflict between IDE and App.
+
+The more likely explanation is Electron single-instance behavior for the App. If an App instance is already running in the background, running `antigravity` again can return immediately and only try to focus the existing window. If that window is hidden, on another workspace, or in a bad state, it looks like the App failed to open.
+
+To make this easier to recover from, the installer creates:
+
+```bash
+antigravity-restart
+```
+
+That helper kills only the Antigravity 2.0 App process and its standalone App language server, then starts the App again. It intentionally does not kill Antigravity IDE.
+
+The App wrapper is also detached by default, so running this from a terminal returns immediately:
+
+```bash
+antigravity
+```
+
+For foreground debugging and logs, run:
+
+```bash
+ANTIGRAVITY_FOREGROUND=1 antigravity --enable-logging=stderr --v=0
+```
