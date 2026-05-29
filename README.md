@@ -122,7 +122,7 @@ The installer does not delete user data. Existing settings, sessions, browser pr
 Before the first install on this machine, a backup was created at:
 
 ```text
-/home/kevin/antigravity-backups/antigravity-userdata-20260529-092007.tar.gz
+<HOME>/antigravity-backups/antigravity-userdata-<BACKUP_TIMESTAMP>.tar.gz
 ```
 
 Keep that backup until old conversations, projects, browser allowlists, auth state, and IDE settings are confirmed in the new versions.

@@ -2,3 +2,6 @@ __pycache__/
 *.py[cod]
 *.pyo
 .DS_Store
+
+# Local machine records
+INSTALLATION.local.md

@@ -4,9 +4,9 @@ This file records the local machine state at the time Antigravity IDE and Antigr
 
 ## Installation Timestamp
 
-- Date/time: `2026-05-29T09:35:30+08:00`
-- Timezone: `Asia/Taipei`
-- Working directory used: `/home/kevin`
+- Date/time: `<INSTALL_TIMESTAMP>`
+- Timezone: `<LOCAL_TIMEZONE>`
+- Working directory used: `<HOME>`
 
 ## Operating System
 
@@ -71,18 +71,18 @@ The old APT repository still exposes `1.23.2-1776332190`, so reinstalling from A
 Before migration/install, existing Antigravity user data was backed up to:
 
 ```text
-/home/kevin/antigravity-backups/antigravity-userdata-20260529-092007.tar.gz
+<HOME>/antigravity-backups/antigravity-userdata-<BACKUP_TIMESTAMP>.tar.gz
 ```
 
 Backup size observed: `1.1G`.
 
 Included paths:
 
-- `/home/kevin/.config/Antigravity`
-- `/home/kevin/.cache/antigravity`
-- `/home/kevin/.gemini/antigravity`
-- `/home/kevin/.gemini/antigravity-cli`
-- `/home/kevin/.gemini/antigravity-browser-profile`
+- `<HOME>/.config/Antigravity`
+- `<HOME>/.cache/antigravity`
+- `<HOME>/.gemini/antigravity`
+- `<HOME>/.gemini/antigravity-cli`
+- `<HOME>/.gemini/antigravity-browser-profile`
 
 ## Initial Launch Notes
 
@@ -92,7 +92,7 @@ Observed App startup:
 
 - App version printed in logs: `v2.0.6`
 - Local server started on a dynamic `https://127.0.0.1:<port>/`
-- Logs path: `/home/kevin/.config/Antigravity/logs/`
+- Logs path: `<HOME>/.config/Antigravity/logs/`
 
 Observed IDE startup/migration messages:
 
