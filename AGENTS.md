@@ -6,6 +6,7 @@ This repository contains a Linux installer and installation record for Google An
 
 - `README.md`: user-facing usage, update, verify, and uninstall instructions.
 - `INSTALLATION.md`: public, redacted machine-state example using placeholders.
+- `INSTALL_NOTES.md`: public installation narrative, decisions, and troubleshooting history.
 - `INSTALLATION.local.md`: local-only machine record. This file is ignored by git and must not be committed.
 - `install.py`: installer script.
 
