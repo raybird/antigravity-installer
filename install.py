@@ -51,6 +51,7 @@ PRODUCTS = {
         "section_end": '},{name:"download",id:"antigravity-sdk"',
         "archive_name": "Antigravity-IDE.tar.gz",
         "url_tail": "/linux-x64/Antigravity%20IDE.tar.gz",
+        "url_override_env": "ANTIGRAVITY_IDE_URL",
         "expected_top": "Antigravity IDE",
         "install_top": "Antigravity-IDE",
         "install_root": OPT / "antigravity-ide",
@@ -91,8 +92,24 @@ def find_bundle_url() -> str:
     return urljoin(DOWNLOAD_PAGE, matches[-1])
 
 
+def extract_download_version(url: str) -> str:
+    version_match = re.search(r'/([0-9]+\.[0-9]+\.[0-9]+)-[^/]+/', url)
+    if version_match:
+        return version_match.group(1)
+    version_match = re.search(r'/antigravity(?:-hub|-ide)?/([^/]+)/', url)
+    return version_match.group(1).split("-", 1)[0] if version_match else "unknown"
+
+
 def parse_download(bundle: str, product: str) -> tuple[str, str]:
     cfg = PRODUCTS[product]
+    override_env = cfg.get("url_override_env")
+    if override_env:
+        override_url = os.environ.get(override_env)
+        if override_url:
+            if cfg["url_tail"] not in override_url:
+                raise SystemExit(f"{override_env} does not look like a {cfg['name']} Linux x64 tarball URL")
+            return extract_download_version(override_url), override_url
+
     start = bundle.find(cfg["section_start"])
     end = bundle.find(cfg["section_end"], start)
     if start == -1 or end == -1:
@@ -104,9 +121,7 @@ def parse_download(bundle: str, product: str) -> tuple[str, str]:
     if not match:
         raise SystemExit(f"Could not find Linux x64 download for {product}")
     url = match.group(1).replace("\\u0026", "&")
-    version_match = re.search(r'/antigravity(?:-hub|-ide)?/([^/]+)/', url)
-    version = version_match.group(1).split("-", 1)[0] if version_match else "unknown"
-    return version, url
+    return extract_download_version(url), url
 
 
 def extract_icon(asar: Path, output: Path) -> None:
