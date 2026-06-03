@@ -9,3 +9,5 @@ INSTALLATION.local.md
 # Local MCP/runtime data
 mcp-memory-libsql.db
 mcp-memory-libsql.db-*
+
+.serena

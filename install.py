@@ -65,6 +65,8 @@ PRODUCTS = {
     },
 }
 
+LEGACY_APP_RESTART_COMMAND = BIN / "antigravity-restart"
+
 
 def fetch_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -127,6 +129,11 @@ def safe_replace(src: Path, dest: Path) -> None:
     if dest.exists():
         dest.rename(previous)
     src.rename(dest)
+
+
+def remove_legacy_restart_helper(path: Path) -> None:
+    if path.exists() or path.is_symlink():
+        path.unlink()
 
 
 def install_product(product: str, bundle: str) -> None:
@@ -211,6 +218,8 @@ def install_product(product: str, bundle: str) -> None:
                 f"exec {shlex.quote(str(command_binary))} {launch_flags} \"$@\"\n"
             )
         cfg["command"].chmod(0o755)
+        if product == "app":
+            remove_legacy_restart_helper(LEGACY_APP_RESTART_COMMAND)
 
         ICONS.mkdir(parents=True, exist_ok=True)
         shutil.copy2(icon_staged, cfg["icon"])

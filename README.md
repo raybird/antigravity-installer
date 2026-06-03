@@ -75,12 +75,35 @@ cd ~/antigravity-installer
 sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app
 ```
 
+To update only the IDE:
+
+```bash
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide
+```
+
+To update only the Antigravity 2.0 app:
+
+```bash
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py app
+```
+
 When replacing an existing install, the previous install root is moved to a `.previous` sibling, for example:
 
 - `/opt/antigravity.previous`
 - `/opt/antigravity-ide.previous`
 
-These can be removed manually after the new version is confirmed working.
+After confirming the new version works, remove old install roots if desired:
+
+```bash
+sudo rm -rf /opt/antigravity.previous /opt/antigravity-ide.previous
+```
+
+For a single-product update, remove only the matching old root:
+
+```bash
+sudo rm -rf /opt/antigravity.previous
+sudo rm -rf /opt/antigravity-ide.previous
+```
 
 ## Verify
 
