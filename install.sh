@@ -21,7 +21,9 @@ set -eu
 
 REPO="${ANTIGRAVITY_INSTALLER_REPO:-raybird/antigravity-installer}"
 REF="${ANTIGRAVITY_INSTALLER_REF:-main}"
-SOURCE="${ANTIGRAVITY_INSTALLER_SOURCE:-https://raw.githubusercontent.com/$REPO/$REF/install.py}"
+BASE="${ANTIGRAVITY_INSTALLER_BASE:-https://raw.githubusercontent.com/$REPO/$REF}"
+SOURCE="${ANTIGRAVITY_INSTALLER_SOURCE:-$BASE/install.py}"
+GUI_SOURCE="${ANTIGRAVITY_INSTALLER_GUI_SOURCE:-$BASE/gui.py}"
 
 die() {
     echo "install.sh: $*" >&2
@@ -47,6 +49,15 @@ if [ "$#" -eq 0 ]; then
     set -- ide app
 fi
 
+# install.py only copies gui.py if it sits next to it, so fetch it on demand.
+wants_gui=0
+for arg in "$@"; do
+    if [ "$arg" = "--install-gui" ]; then
+        wants_gui=1
+        break
+    fi
+done
+
 # Running as root means /opt and /usr/local, which is what sudo implies here.
 # An explicit ANTIGRAVITY_INSTALL_MODE always wins.
 if [ -z "${ANTIGRAVITY_INSTALL_MODE:-}" ] && [ "$(id -u)" = "0" ]; then
@@ -63,5 +74,12 @@ fetch "$SOURCE" >"$tmp/install.py" || die "could not download $SOURCE"
 # Catches a proxy or error page being saved as the installer.
 head -n 1 "$tmp/install.py" | grep -q '^#!/usr/bin/env python3$' ||
     die "downloaded file is not install.py"
+
+if [ "$wants_gui" = "1" ]; then
+    echo "Fetching $GUI_SOURCE"
+    fetch "$GUI_SOURCE" >"$tmp/gui.py" || die "could not download $GUI_SOURCE"
+    head -n 1 "$tmp/gui.py" | grep -q '^#!/usr/bin/env python3$' ||
+        die "downloaded file is not gui.py"
+fi
 
 python3 "$tmp/install.py" "$@"

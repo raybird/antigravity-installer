@@ -75,6 +75,28 @@ cd ~/antigravity-installer
 
 Every version it reports comes from `install.py`, so the GUI and `--check` can never disagree. Installing runs `install.py` through `pkexec`, which asks for authorisation the usual desktop way; untick *系統安裝* to install under `~/.local` with no prompt. Installer output is streamed into the window.
 
+`--install-gui` installs it properly, with a launcher command and an application-menu entry, so no clone has to stay on disk:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh \
+  | sudo sh -s -- --install-gui
+```
+
+It can be combined with products, so this installs everything in one line:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh \
+  | sudo sh -s -- ide app --install-gui
+```
+
+That writes:
+
+- `/usr/local/share/antigravity-installer/{gui.py,install.py}` — the GUI and the installer it drives
+- `/usr/local/bin/antigravity-manager` — launcher command
+- `/usr/share/applications/antigravity-manager.desktop` — application-menu entry
+
+Without root the same paths move under `~/.local`. The copies are a snapshot; re-run `--install-gui` to refresh them.
+
 It needs PyGObject and GTK 3, which Ubuntu GNOME already has. On a system without them:
 
 ```bash
@@ -294,6 +316,14 @@ sudo rm -rf /opt/antigravity /opt/antigravity.previous \
   /usr/share/applications/antigravity-ide.desktop \
   /usr/share/icons/hicolor/512x512/apps/antigravity.png \
   /usr/share/icons/hicolor/512x512/apps/antigravity-ide.png
+```
+
+If the GUI was installed with `--install-gui`, remove it too:
+
+```bash
+sudo rm -rf /usr/local/share/antigravity-installer \
+  /usr/local/bin/antigravity-manager \
+  /usr/share/applications/antigravity-manager.desktop
 ```
 
 This does not remove user data under `~/.config`, `~/.cache`, `~/.gemini`, or `~/.antigravity-ide`.

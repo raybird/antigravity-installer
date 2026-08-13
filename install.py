@@ -71,6 +71,12 @@ VERSION_MARKER = ".userlocal-version"
 # it reports the truth without needing ANTIGRAVITY_INSTALL_MODE to be set.
 ALT_OPT = HOME / ".local" / "opt" if SYSTEM_INSTALL else Path("/opt")
 
+# --install-gui copies gui.py and install.py here, so the launcher keeps working
+# after the directory this script was run from is gone.
+GUI_DATA = LOCAL / "share" / "antigravity-installer"
+GUI_COMMAND = BIN / "antigravity-manager"
+GUI_DESKTOP = APPS / "antigravity-manager.desktop"
+
 
 def fetch_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -295,6 +301,54 @@ def read_version_marker(root: Path) -> str | None:
     return version or None
 
 
+def install_gui() -> bool:
+    """Install gui.py plus a launcher command and desktop entry."""
+    source_dir = Path(__file__).resolve().parent
+    sources = [source_dir / "gui.py", source_dir / "install.py"]
+    missing = [source for source in sources if not source.exists()]
+    if missing:
+        raise SystemExit(f"Cannot install the GUI, missing: {', '.join(str(m) for m in missing)}")
+
+    GUI_DATA.mkdir(parents=True, exist_ok=True)
+    for source in sources:
+        target = GUI_DATA / source.name
+        shutil.copy2(source, target)
+        target.chmod(0o755)
+
+    BIN.mkdir(parents=True, exist_ok=True)
+    if GUI_COMMAND.exists() or GUI_COMMAND.is_symlink():
+        GUI_COMMAND.unlink()
+    # gui.py re-execs itself under the system Python when the one on PATH
+    # cannot import gi, so plain python3 is enough here.
+    GUI_COMMAND.write_text(
+        "#!/bin/sh\n"
+        f"exec python3 {shlex.quote(str(GUI_DATA / 'gui.py'))} \"$@\"\n"
+    )
+    GUI_COMMAND.chmod(0o755)
+
+    APPS.mkdir(parents=True, exist_ok=True)
+    GUI_DESKTOP.write_text(
+        "\n".join(
+            [
+                "[Desktop Entry]",
+                "Name=Antigravity Manager",
+                "Comment=Check versions and install or update Google Antigravity",
+                f"Exec={GUI_COMMAND}",
+                "Icon=system-software-install",
+                "Terminal=false",
+                "Type=Application",
+                "Categories=Development;",
+                "StartupNotify=true",
+                "",
+            ]
+        )
+    )
+    GUI_DESKTOP.chmod(GUI_DESKTOP.stat().st_mode | stat.S_IXUSR)
+
+    print(f"Installed Antigravity Manager at {GUI_COMMAND}")
+    return True
+
+
 def installed_version(product: str) -> tuple[str, Path] | None:
     """Return the recorded version and its install root, in either install mode."""
     for root in install_roots(product):
@@ -329,7 +383,20 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Install or update Google Antigravity on Linux x64.",
     )
-    parser.add_argument("products", nargs="+", choices=sorted(PRODUCTS))
+    # choices= is not used here: with nargs="*" argparse validates the empty
+    # default against it, which would forbid a GUI-only run.
+    parser.add_argument(
+        "products",
+        nargs="*",
+        default=[],
+        metavar="{" + ",".join(sorted(PRODUCTS)) + "}",
+    )
+    parser.add_argument(
+        "--install-gui",
+        action="store_true",
+        help="install the Antigravity Manager GUI, its launcher command and its "
+        "desktop entry; can be combined with products",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check",
@@ -345,6 +412,17 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    unknown = [product for product in args.products if product not in PRODUCTS]
+    if unknown:
+        parser.error(
+            f"invalid product: {', '.join(unknown)} "
+            f"(choose from {', '.join(sorted(PRODUCTS))})"
+        )
+    if not args.products and not args.install_gui:
+        parser.error("name at least one product, or pass --install-gui")
+    if args.check and args.install_gui:
+        parser.error("--install-gui cannot be combined with --check")
+
     if os.uname().machine not in {"x86_64", "amd64"}:
         raise SystemExit(f"Unsupported architecture for this installer: {os.uname().machine}")
 
@@ -359,6 +437,8 @@ def main() -> None:
         return
 
     installed = [install_product(product, page, force=args.force) for product in args.products]
+    if args.install_gui:
+        installed.append(install_gui())
     if not any(installed):
         return
 
