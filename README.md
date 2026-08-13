@@ -5,7 +5,17 @@ Small installer for Google Antigravity on Linux x64. It reads the current offici
 - `app`: Antigravity 2.0 desktop app
 - `ide`: Antigravity IDE
 
+Google ships these as bare tarballs, so everything a package manager would normally do has to be done here: desktop entries, icons, `PATH` commands, the Electron sandbox bit, and atomic-enough replacement on update.
+
 This script was created because the legacy APT package named `antigravity` can lag behind the new Antigravity 2.0 product split and can conflict with the new `antigravity` command.
+
+Three ways to drive it:
+
+| | |
+|---|---|
+| [One-line install](#quick-install) | `curl … \| sudo sh`, no clone needed |
+| [CLI](#usage) | `./install.py ide app`, plus `--check` and `--force` |
+| [GUI](#gui) | version table and one-click update, installable into the application menu |
 
 See also [`INSTALLATION.md`](./INSTALLATION.md) for the redacted OS, runtime, version, and install state captured during setup, [`INSTALL_NOTES.md`](./INSTALL_NOTES.md) for the installation narrative and troubleshooting history, and [`KNOWN_ISSUES.md`](./KNOWN_ISSUES.md) for current Linux-specific issues and workarounds.
 
@@ -19,15 +29,24 @@ On this machine, the preferred installation is system-wide:
 - Desktop entries: `/usr/share/applications/antigravity.desktop`, `/usr/share/applications/antigravity-ide.desktop`
 - Icons: `/usr/share/icons/hicolor/512x512/apps/`
 
+With `--install-gui` there is also:
+
+- Manager scripts and icon: `/usr/local/share/antigravity-installer/`
+- Manager command: `/usr/local/bin/antigravity-manager`
+- Manager desktop entry: `/usr/share/applications/antigravity-manager.desktop`
+- Manager icon: `/usr/share/icons/hicolor/scalable/apps/antigravity-manager.svg`
+
 The installer also sets Electron `chrome-sandbox` to root-owned `4755` during system install. Command wrappers launch with `--ozone-platform=x11` to avoid GNOME Wayland/Vulkan startup issues observed on Ubuntu 24.04. The IDE wrapper calls the official `bin/antigravity-ide` CLI so `antigravity-ide .` returns control to the terminal after handing the request to the IDE.
 
 ## Requirements
 
 - Ubuntu or another glibc-based Linux distribution
 - x86_64 CPU
-- Python 3.10+
+- Python 3.10+, standard library only
 - Network access to `https://antigravity.google/download`
 - `sudo` for system-wide install
+- `curl` or `wget` for the one-line install
+- PyGObject and GTK 3 for the GUI only, which Ubuntu GNOME already has
 
 ## Quick Install
 
@@ -49,11 +68,12 @@ curl -fsSL $BOOTSTRAP | sudo sh -s -- ide           # IDE only
 curl -fsSL $BOOTSTRAP | sudo sh -s -- --force ide   # repair a damaged install
 ```
 
-`main` moves whenever this repo changes. To run a fixed revision instead, pin the ref:
+`main` moves whenever this repo changes, so the one-line install runs whatever it holds at that moment. To run a fixed revision instead, pin the ref in both the URL and the environment, so `install.sh` fetches `install.py` from the same revision it came from:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/v1.0.0/install.sh \
-  | sudo env ANTIGRAVITY_INSTALLER_REF=v1.0.0 sh
+REF=a671b42   # any tag or commit SHA in this repo
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/$REF/install.sh \
+  | sudo env ANTIGRAVITY_INSTALLER_REF=$REF sh
 ```
 
 Piping a remote script into a root shell runs whatever that URL currently serves. Read it first if that matters to you:
@@ -129,6 +149,12 @@ Install only the Antigravity 2.0 app:
 sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py app
 ```
 
+Install the products and the manager GUI together:
+
+```bash
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app --install-gui
+```
+
 User-local install is also supported when sudo is unavailable:
 
 ```bash
@@ -181,6 +207,8 @@ Otherwise the installer downloads the current official tarball and replaces the 
 cd ~/antigravity-installer
 sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app
 ```
+
+Quit a running app or IDE before updating it, and do not run the update from a terminal hosted inside the IDE being replaced. The install root is swapped underneath the running process, so anything it loads lazily afterwards resolves to the new version.
 
 To update only the IDE:
 

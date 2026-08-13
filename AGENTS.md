@@ -12,6 +12,10 @@ This repository contains a Linux installer and installation record for Google An
 - `install.py`: installer script.
 - `install.sh`: bootstrap for `curl … | sudo sh`. Fetches `install.py` from this repo and runs it, so its default ref (`main`) must always hold a working `install.py`.
 - `gui.py`: GTK front end. It imports `install.py` rather than reimplementing any version logic, and shells out to `install.py` (via `pkexec` for system installs) to do the work. Keep it that way, so the GUI can never report something the CLI would not.
+- `antigravity-manager.svg`: icon for the GUI. Deliberately unlike the Antigravity product icons, and optional — `install.py` falls back to a stock icon name when it is absent.
+- `tests/test_install_config.py`: the whole test suite. `tests/fixtures/download_page.html` is a trimmed excerpt of the real download page.
+
+Three entry points reach the same code: `install.sh` downloads and runs `install.py`, `gui.py` imports and runs `install.py`, and `install.py` runs standalone. Any behaviour change belongs in `install.py` so all three inherit it.
 
 ## Fresh Ubuntu Checklist
 
@@ -42,10 +46,17 @@ For a fresh Ubuntu x86_64 machine:
    ~/.antigravity-ide
    ```
 
-6. Install system-wide:
+6. Install system-wide, from a clone:
 
    ```bash
    sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app
+   ```
+
+   Or without cloning, which also picks the install mode from whether it runs as root:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh \
+     | sudo sh -s -- ide app --install-gui
    ```
 
 7. Verify command wrappers:
@@ -113,13 +124,20 @@ After confirming the new version works, the `.previous` directories may be remov
 - Do not commit machine-specific absolute home paths, backup timestamps, usernames, emails, hostnames, or credentials.
 - Use placeholders such as `<HOME>`, `<LOCAL_TIMEZONE>`, `<INSTALL_TIMESTAMP>`, and `<BACKUP_TIMESTAMP>` in public docs.
 - Never write sudo passwords, API keys, OAuth tokens, SSH keys, or browser/session data into this repository.
-- Keep `install.py` standard-library only unless there is a strong reason to add dependencies.
+- Keep `install.py` standard-library only unless there is a strong reason to add dependencies. `gui.py` is the one exception: it needs PyGObject, which is why the GUI is optional and never on the install path.
 - After edits, run:
 
   ```bash
   python3 -m py_compile install.py
   python3 -m unittest discover -s tests
+  sh -n install.sh
   git status --short
+  ```
+
+  `gui.py` is not covered by the test suite and needs the system Python, so check it separately when touched:
+
+  ```bash
+  /usr/bin/python3 -m py_compile gui.py
   ```
 
 ## Download Page Parsing

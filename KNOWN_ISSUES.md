@@ -6,15 +6,17 @@ This file records observed Antigravity Linux issues and local workarounds.
 
 ### Status
 
-Open upstream issue / local workaround only.
+Open upstream issue / local workaround only. **Not re-verified on current versions.**
 
 This appears to be an Antigravity 2.0 Linux app lifecycle issue. It has not been fully fixed locally; the current repo only provides safer launch helpers.
+
+Everything below was observed on app `2.0.x`. The app has since moved several minor versions, and the behaviour has not been retested, so treat this as history rather than a current defect report. If it no longer reproduces, delete this section instead of leaving it to rot.
 
 ### Environment Observed
 
 - Ubuntu 24.04.x
 - GNOME on Wayland
-- Antigravity 2.0 app installed from official Linux x64 tarball
+- Antigravity 2.0 app `2.0.x` installed from official Linux x64 tarball
 - Antigravity IDE installed separately from official Linux x64 tarball
 - App launched through `/usr/local/bin/antigravity`
 - IDE launched through `/usr/local/bin/antigravity-ide`

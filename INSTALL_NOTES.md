@@ -208,6 +208,34 @@ Changes made in response:
 
 The lesson worth keeping: the fragile part of this installer is not the install logic, it is the dependency on someone else's marketing page. That part needs both a test that pins the current shape and an override that works when the shape changes.
 
+## Making It Usable Without A Clone (2026-08-13)
+
+Fixing the parser exposed a second problem: knowing whether an update existed at all required cloning the repo and reading version markers by hand. Three things were added on top of the fix.
+
+**`--check`.** Compares the recorded version in each install root against the download page and exits `1` if anything is stale, so it can drive a scheduled check. It deliberately looks in both the system and the user-local root, because a read-only report that answers "not installed" for something installed two directories over is worse than no report at all. That was the first implementation's actual behaviour and it had to be corrected.
+
+**Skip when current, `--force` to override.** Re-running the installer used to re-download roughly 1.2 GB regardless. The version comparison only consults the root the run would write to, *not* the cross-mode lookup `--check` uses: a user-local install must never satisfy a system install request. There is a test pinning exactly that.
+
+**`install.sh`.** A `curl … | sudo sh` bootstrap. Install mode is derived from whether it runs as root, which removes the awkward `curl … | sudo env ANTIGRAVITY_INSTALL_MODE=system sh`. It verifies the download is non-empty and starts with the expected shebang, which catches a proxy or error page being executed as Python.
+
+The tradeoff is stated in `README.md` rather than hidden: piping a URL into a root shell runs whatever that URL serves at that moment, and `main` moves. Pinning a ref requires setting it in both the URL and `ANTIGRAVITY_INSTALLER_REF`, because `install.sh` fetches `install.py` separately.
+
+## The Manager GUI
+
+The GUI exists because reading version numbers is the most common reason to touch this repo, and that should not require a terminal.
+
+**GTK, not tkinter.** tkinter is standard library, but no Python on this machine had it: neither the pyenv build nor the system one, and `python3-tk` was absent. PyGObject with GTK 3 was already present, being a system package on Ubuntu GNOME. So the GUI needs no extra install on the target machine, at the cost of not being importable from an arbitrary virtualenv.
+
+That last part is a real trap: PyGObject lives in the system Python, while `python3` on a developer machine often points at pyenv or asdf. `gui.py` re-execs itself once under `/usr/bin/python3` when `import gi` fails, so it works either way.
+
+**pkexec, not a root GUI.** Installing needs root for `/opt`, but running the whole window as root is the wrong shape. The GUI stays unprivileged and spawns `pkexec env ANTIGRAVITY_INSTALL_MODE=system python3 install.py …`, which produces the standard desktop authorisation dialog. `pkexec` exits `126` when that dialog is dismissed, which is reported as cancelled rather than failed.
+
+**No duplicated logic.** Every version the GUI shows comes from calling `install.py`, and every install it performs shells out to `install.py`. The GUI cannot report something the CLI would not, because it has no version logic of its own.
+
+**Its own icon.** `--install-gui` places `antigravity-manager.svg` in the hicolor theme. Reusing the Antigravity app icon was rejected: the manager would be indistinguishable from the app in the application menu, and the icon only exists once the app is installed. The shipped icon is optional, and a stock `system-software-install` is used when it is absent.
+
+While wiring that up, a long-standing path bug surfaced: on system install, icons are written to `/usr/share/icons/hicolor` but `gtk-update-icon-cache` was being pointed at `/usr/local/share/icons/hicolor`. The cache for the directory actually written was never refreshed. Both now derive from one `ICON_THEME` constant.
+
 ## Repository Hygiene
 
 This repo is intended to be public-safe.
@@ -241,13 +269,20 @@ For another Ubuntu x86_64 machine:
 1. Read `README.md` and `AGENTS.md`.
 2. Back up existing Antigravity/Gemini user data if present.
 3. Remove legacy APT `antigravity` without purge if it owns the old command.
-4. Run:
+4. Install everything, including the manager GUI, without cloning:
 
    ```bash
-   sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app
+   curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh \
+     | sudo sh -s -- ide app --install-gui
    ```
 
-5. Verify wrappers, sandbox permissions, and startup.
+   From a clone the equivalent is:
+
+   ```bash
+   sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app --install-gui
+   ```
+
+5. Verify wrappers, sandbox permissions, and startup. Afterwards `./install.py --check ide app` reports the state at any time without `sudo`.
 6. If the IDE MCP page is empty, check whether the old config exists at `~/.gemini/antigravity/mcp_config.json` and whether the new config at `~/.gemini/config/mcp_config.json` is empty.
 
 ## IDE Open, App Appears Not To Open

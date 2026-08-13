@@ -2,6 +2,8 @@
 
 This file records the local machine state at the time Antigravity IDE and Antigravity 2.0 were installed.
 
+It is a snapshot, not a live view. Run `./install.py --check ide app` for the current state.
+
 ## Installation Timestamp
 
 - Date/time: `<INSTALL_TIMESTAMP>`
@@ -19,16 +21,20 @@ This file records the local machine state at the time Antigravity IDE and Antigr
 ## Runtime Versions
 
 - glibc / `ldd`: `2.39` (`Ubuntu GLIBC 2.39-0ubuntu8.7`)
-- `libc6:amd64`: `2.39-0ubuntu8.7`
-- `libc6:i386`: `2.39-0ubuntu8.7`
+- `libc6:amd64`: `2.39-0ubuntu8.8`
+- `libc6:i386`: `2.39-0ubuntu8.8`
 - `libstdc++6:amd64`: `14.2.0-4ubuntu2~24.04.1`
 - `python3`: `3.12.3-0ubuntu2.1`
 
 ## Installed Antigravity Products
 
-- Antigravity 2.0 app download marker: `2.0.10`
-- Antigravity IDE download marker: `stable`
-- Antigravity IDE product base version observed in `product.json`: `1.107.0`
+Versions recorded by this installer in `<install root>/.userlocal-version`:
+
+- Antigravity 2.0 app: `2.8.0`
+- Antigravity IDE: `2.5.2`
+- Antigravity IDE product base version observed via `bin/antigravity-ide --version`: `1.107.0`
+
+The first records of this machine showed `2.0.10` for the app and `stable` for the IDE. That `stable` was not a version: version extraction fell back to a path segment because the IDE download URL did not carry a `<semver>-<build>` component in the form the parser expected. Both products now resolve to real version numbers.
 
 ## Install Paths
 
@@ -40,6 +46,20 @@ This file records the local machine state at the time Antigravity IDE and Antigr
 - IDE desktop entry: `/usr/share/applications/antigravity-ide.desktop`
 - App icon: `/usr/share/icons/hicolor/512x512/apps/antigravity.png`
 - IDE icon: `/usr/share/icons/hicolor/512x512/apps/antigravity-ide.png`
+
+Previous install roots are kept as `.previous` siblings until removed by hand:
+
+- `/opt/antigravity.previous`
+- `/opt/antigravity-ide.previous`
+
+## Manager GUI
+
+Installed only when `--install-gui` is passed:
+
+- Scripts and icon: `/usr/local/share/antigravity-installer/`
+- Command: `/usr/local/bin/antigravity-manager`
+- Desktop entry: `/usr/share/applications/antigravity-manager.desktop`
+- Icon: `/usr/share/icons/hicolor/scalable/apps/antigravity-manager.svg`
 
 ## Sandbox State
 
@@ -85,6 +105,8 @@ Included paths:
 - `<HOME>/.gemini/antigravity-browser-profile`
 
 ## Initial Launch Notes
+
+These were recorded during the first install, when the app was `2.0.10`.
 
 Both binaries were smoke-tested by launching them under `timeout`.
 
