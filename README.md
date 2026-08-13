@@ -90,7 +90,13 @@ Versions come from the `.userlocal-version` file this installer writes into each
 
 ## Updating
 
-Run the same install command again. The installer downloads the current official tarball and replaces the install root atomically enough for normal desktop use:
+Run the same install command again. A product whose installed version already matches the official one is skipped without downloading, so this is cheap to run whenever:
+
+```text
+Antigravity IDE 2.5.2 is already installed at /opt/antigravity-ide; use --force to reinstall
+```
+
+Otherwise the installer downloads the current official tarball and replaces the install root atomically enough for normal desktop use:
 
 ```bash
 cd ~/antigravity-installer
@@ -126,6 +132,16 @@ For a single-product update, remove only the matching old root:
 sudo rm -rf /opt/antigravity.previous
 sudo rm -rf /opt/antigravity-ide.previous
 ```
+
+## Repairing an Install
+
+Because a matching version is skipped, reinstalling a damaged install needs `--force`:
+
+```bash
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py --force ide
+```
+
+The version comparison only looks at the install root the run would write to, so a user-local install never causes a system install to be skipped, or the other way round.
 
 ## Overriding the Download URL
 

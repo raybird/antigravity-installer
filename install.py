@@ -156,10 +156,17 @@ def remove_legacy_restart_helper(path: Path) -> None:
         path.unlink()
 
 
-def install_product(product: str, page: str) -> None:
+def install_product(product: str, page: str, force: bool = False) -> bool:
+    """Install one product. Returns False when it was already up to date."""
     cfg = PRODUCTS[product]
     version, url = parse_download(page, product)
     root = cfg["install_root"]
+    # Only the root about to be written counts here. installed_version() also
+    # looks at the other install mode, and skipping on that would leave the
+    # requested mode uninstalled.
+    if not force and read_version_marker(root) == version:
+        print(f"{cfg['name']} {version} is already installed at {root}; use --force to reinstall")
+        return False
     top = cfg.get("install_top", cfg["expected_top"])
     target_dir = root / top
     binary = target_dir / cfg["binary"]
@@ -269,6 +276,7 @@ def install_product(product: str, page: str) -> None:
         cfg["desktop"].chmod(cfg["desktop"].stat().st_mode | stat.S_IXUSR)
 
     print(f"Installed {cfg['name']} {version} at {target_dir}")
+    return True
 
 
 def install_roots(product: str) -> list[Path]:
@@ -278,13 +286,19 @@ def install_roots(product: str) -> list[Path]:
     return [root] if alt == root else [root, alt]
 
 
+def read_version_marker(root: Path) -> str | None:
+    """Return the version recorded in one specific install root."""
+    try:
+        version = (root / VERSION_MARKER).read_text().strip()
+    except OSError:
+        return None
+    return version or None
+
+
 def installed_version(product: str) -> tuple[str, Path] | None:
     """Return the recorded version and its install root, in either install mode."""
     for root in install_roots(product):
-        try:
-            version = (root / VERSION_MARKER).read_text().strip()
-        except OSError:
-            continue
+        version = read_version_marker(root)
         if version:
             return version, root
     return None
@@ -316,11 +330,18 @@ def main() -> None:
         description="Install or update Google Antigravity on Linux x64.",
     )
     parser.add_argument("products", nargs="+", choices=sorted(PRODUCTS))
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--check",
         action="store_true",
         help="report installed vs available versions and exit without downloading; "
         "exit status is 1 when any product is missing or out of date",
+    )
+    mode.add_argument(
+        "--force",
+        action="store_true",
+        help="reinstall even when the installed version already matches the "
+        "available version, for repairing a damaged install",
     )
     args = parser.parse_args()
 
@@ -337,8 +358,9 @@ def main() -> None:
         check_products(args.products, page)
         return
 
-    for product in args.products:
-        install_product(product, page)
+    installed = [install_product(product, page, force=args.force) for product in args.products]
+    if not any(installed):
+        return
 
     if shutil.which("update-desktop-database"):
         subprocess.run(["update-desktop-database", str(APPS)], check=False)

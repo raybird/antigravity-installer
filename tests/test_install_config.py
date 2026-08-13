@@ -201,6 +201,45 @@ class CheckProductsTest(unittest.TestCase):
         self.assertIn("To update: app", output)
 
 
+class SkipWhenCurrentTest(unittest.TestCase):
+    """install_product must not re-download a version already in place."""
+
+    @contextlib.contextmanager
+    def download_forbidden(self):
+        out = io.StringIO()
+        with patch.object(install, "download", side_effect=RuntimeError("downloaded")):
+            with contextlib.redirect_stdout(out):
+                yield out
+
+    def test_skips_when_the_installed_version_matches(self):
+        with fake_install_root("ide", "2.5.2") as (root, _):
+            with self.download_forbidden() as out:
+                changed = install.install_product("ide", download_page())
+
+        self.assertFalse(changed)
+        self.assertIn("already installed", out.getvalue())
+        self.assertIn(str(root), out.getvalue())
+
+    def test_force_reinstalls_the_same_version(self):
+        with fake_install_root("ide", "2.5.2"):
+            with self.download_forbidden():
+                with self.assertRaises(RuntimeError):
+                    install.install_product("ide", download_page(), force=True)
+
+    def test_does_not_skip_on_a_stale_version(self):
+        with fake_install_root("ide", "2.1.1"):
+            with self.download_forbidden():
+                with self.assertRaises(RuntimeError):
+                    install.install_product("ide", download_page())
+
+    def test_does_not_skip_because_the_other_install_mode_is_current(self):
+        """A user-local install must never satisfy a system install request."""
+        with fake_install_root("ide", None, alt_version="2.5.2"):
+            with self.download_forbidden():
+                with self.assertRaises(RuntimeError):
+                    install.install_product("ide", download_page())
+
+
 class ExtractDownloadVersionTest(unittest.TestCase):
     def test_extracts_version_from_ide_download_url(self):
         self.assertEqual(install.extract_download_version(IDE_URL), "2.5.2")
