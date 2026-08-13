@@ -10,4 +10,6 @@ INSTALLATION.local.md
 mcp-memory-libsql.db
 mcp-memory-libsql.db-*
 
+# Local agent tooling state
 .serena
+.claude
