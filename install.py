@@ -499,8 +499,11 @@ def main() -> None:
 
     if shutil.which("update-desktop-database"):
         subprocess.run(["update-desktop-database", str(APPS)], check=False)
-    if shutil.which("gtk-update-icon-cache"):
-        subprocess.run(["gtk-update-icon-cache", "-q", "-f", "-t", str(ICON_THEME)], check=False)
+    # Only refresh a directory that is a real icon theme root. Forcing a cache
+    # into one without an index.theme (the user-local hicolor) leaves a stale
+    # cache behind for every other application writing icons there.
+    if shutil.which("gtk-update-icon-cache") and (ICON_THEME / "index.theme").exists():
+        subprocess.run(["gtk-update-icon-cache", "-q", "-f", str(ICON_THEME)], check=False)
 
 
 if __name__ == "__main__":
