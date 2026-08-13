@@ -64,6 +64,25 @@ curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/
 
 Run `--check` without `sudo`. Under `sudo` the fallback lookup uses root's home, so a user-local install is not found.
 
+## GUI
+
+`gui.py` is a small GTK window that shows the installed and available version of each product and installs or updates the ones you pick:
+
+```bash
+cd ~/antigravity-installer
+./gui.py
+```
+
+Every version it reports comes from `install.py`, so the GUI and `--check` can never disagree. Installing runs `install.py` through `pkexec`, which asks for authorisation the usual desktop way; untick *系統安裝* to install under `~/.local` with no prompt. Installer output is streamed into the window.
+
+It needs PyGObject and GTK 3, which Ubuntu GNOME already has. On a system without them:
+
+```bash
+sudo apt install python3-gi gir1.2-gtk-3.0
+```
+
+PyGObject belongs to the system Python, so `gui.py` re-execs itself under `/usr/bin/python3` when the interpreter it was started with cannot import `gi`. That makes it work unchanged under pyenv, asdf, or a virtualenv.
+
 ## Usage
 
 Install both the IDE and the Antigravity 2.0 app system-wide:

@@ -11,6 +11,7 @@ This repository contains a Linux installer and installation record for Google An
 - `INSTALLATION.local.md`: local-only machine record. This file is ignored by git and must not be committed.
 - `install.py`: installer script.
 - `install.sh`: bootstrap for `curl … | sudo sh`. Fetches `install.py` from this repo and runs it, so its default ref (`main`) must always hold a working `install.py`.
+- `gui.py`: GTK front end. It imports `install.py` rather than reimplementing any version logic, and shells out to `install.py` (via `pkexec` for system installs) to do the work. Keep it that way, so the GUI can never report something the CLI would not.
 
 ## Fresh Ubuntu Checklist
 
