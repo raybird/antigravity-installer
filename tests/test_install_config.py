@@ -1,3 +1,5 @@
+import contextlib
+import io
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -110,6 +112,93 @@ class UrlOverrideTest(unittest.TestCase):
     def test_no_override_returns_none(self):
         with patch.dict("os.environ", {}, clear=True):
             self.assertIsNone(install.override_url("ide"))
+
+
+@contextlib.contextmanager
+def fake_install_root(product, version, alt_version=None):
+    """Point a product's install roots at temp dirs holding version markers.
+
+    ALT_OPT is redirected too, so the real /opt on the developer's machine can
+    never leak into a test result.
+    """
+    with TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        root = tmp / "primary" / install.PRODUCTS[product]["install_root"].name
+        alt_opt = tmp / "alt"
+        alt = alt_opt / root.name
+        for target, value in ((root, version), (alt, alt_version)):
+            if value is not None:
+                target.mkdir(parents=True)
+                (target / install.VERSION_MARKER).write_text(value + "\n")
+        with patch.dict(install.PRODUCTS[product], {"install_root": root}):
+            with patch.object(install, "ALT_OPT", alt_opt):
+                yield root, alt
+
+
+class InstalledVersionTest(unittest.TestCase):
+    def test_reads_and_strips_the_version_marker(self):
+        with fake_install_root("ide", "2.5.2") as (root, _):
+            self.assertEqual(install.installed_version("ide"), ("2.5.2", root))
+
+    def test_none_when_not_installed(self):
+        with fake_install_root("ide", None):
+            self.assertIsNone(install.installed_version("ide"))
+
+    def test_none_when_marker_is_blank(self):
+        with fake_install_root("ide", "   "):
+            self.assertIsNone(install.installed_version("ide"))
+
+    def test_falls_back_to_the_other_install_mode(self):
+        """--check must find a system install even without ANTIGRAVITY_INSTALL_MODE."""
+        with fake_install_root("ide", None, alt_version="2.5.2") as (_, alt):
+            self.assertEqual(install.installed_version("ide"), ("2.5.2", alt))
+
+    def test_prefers_the_current_mode_over_the_fallback(self):
+        with fake_install_root("ide", "2.5.2", alt_version="2.1.1") as (root, _):
+            self.assertEqual(install.installed_version("ide"), ("2.5.2", root))
+
+
+class CheckProductsTest(unittest.TestCase):
+    def run_check(self, products):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            try:
+                install.check_products(products, download_page())
+                code = 0
+            except SystemExit as exit_error:
+                code = exit_error.code
+        return code, out.getvalue()
+
+    def test_exits_zero_when_up_to_date(self):
+        with fake_install_root("ide", "2.5.2"):
+            code, output = self.run_check(["ide"])
+
+        self.assertEqual(code, 0)
+        self.assertIn("up to date", output)
+
+    def test_exits_one_when_an_update_is_available(self):
+        with fake_install_root("ide", "2.1.1") as (root, _):
+            code, output = self.run_check(["ide"])
+
+        self.assertEqual(code, 1)
+        self.assertIn("update available", output)
+        self.assertIn(f"installed 2.1.1 at {root}, available 2.5.2", output)
+
+    def test_exits_one_when_not_installed(self):
+        with fake_install_root("ide", None):
+            code, output = self.run_check(["ide"])
+
+        self.assertEqual(code, 1)
+        self.assertIn("not installed", output)
+
+    def test_reports_every_requested_product(self):
+        with fake_install_root("ide", "2.5.2"), fake_install_root("app", "2.1.4"):
+            code, output = self.run_check(["ide", "app"])
+
+        self.assertEqual(code, 1)
+        self.assertIn("Antigravity IDE:", output)
+        self.assertIn("Antigravity:", output)
+        self.assertIn("To update: app", output)
 
 
 class ExtractDownloadVersionTest(unittest.TestCase):

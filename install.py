@@ -64,6 +64,13 @@ PRODUCTS = {
 
 LEGACY_APP_RESTART_COMMAND = BIN / "antigravity-restart"
 
+# Written into each install root so --check can compare against the download page.
+VERSION_MARKER = ".userlocal-version"
+
+# The install root of the mode this run is *not* using. --check looks in both so
+# it reports the truth without needing ANTIGRAVITY_INSTALL_MODE to be set.
+ALT_OPT = HOME / ".local" / "opt" if SYSTEM_INSTALL else Path("/opt")
+
 
 def fetch_text(url: str) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
@@ -198,7 +205,7 @@ def install_product(product: str, page: str) -> None:
             shutil.rmtree(staged)
         staged.mkdir(parents=True)
         shutil.copytree(extracted, staged / top, symlinks=True)
-        (staged / ".userlocal-version").write_text(version + "\n")
+        (staged / VERSION_MARKER).write_text(version + "\n")
         sandbox = staged / top / "chrome-sandbox"
         if SYSTEM_INSTALL and sandbox.exists():
             os.chown(sandbox, 0, 0)
@@ -264,9 +271,57 @@ def install_product(product: str, page: str) -> None:
     print(f"Installed {cfg['name']} {version} at {target_dir}")
 
 
+def install_roots(product: str) -> list[Path]:
+    """Where this product may be installed: the current mode's root, then the other."""
+    root = PRODUCTS[product]["install_root"]
+    alt = ALT_OPT / root.name
+    return [root] if alt == root else [root, alt]
+
+
+def installed_version(product: str) -> tuple[str, Path] | None:
+    """Return the recorded version and its install root, in either install mode."""
+    for root in install_roots(product):
+        try:
+            version = (root / VERSION_MARKER).read_text().strip()
+        except OSError:
+            continue
+        if version:
+            return version, root
+    return None
+
+
+def check_products(products: list[str], page: str) -> None:
+    """Report installed vs available versions. Exits 1 if anything is stale."""
+    stale = []
+    for product in products:
+        cfg = PRODUCTS[product]
+        available, _ = parse_download(page, product)
+        found = installed_version(product)
+        if found is None:
+            stale.append(product)
+            print(f"{cfg['name']}: not installed, available {available}")
+            continue
+        current, root = found
+        status = "up to date" if current == available else "update available"
+        if current != available:
+            stale.append(product)
+        print(f"{cfg['name']}: installed {current} at {root}, available {available} ({status})")
+    if stale:
+        print(f"\nTo update: {' '.join(stale)}")
+        raise SystemExit(1)
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Install or update Google Antigravity on Linux x64.",
+    )
     parser.add_argument("products", nargs="+", choices=sorted(PRODUCTS))
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="report installed vs available versions and exit without downloading; "
+        "exit status is 1 when any product is missing or out of date",
+    )
     args = parser.parse_args()
 
     if os.uname().machine not in {"x86_64", "amd64"}:
@@ -277,6 +332,11 @@ def main() -> None:
     # an escape hatch when the page layout changes.
     overrides = [override_url(product) for product in args.products]
     page = "" if all(overrides) else fetch_text(DOWNLOAD_PAGE)
+
+    if args.check:
+        check_products(args.products, page)
+        return
+
     for product in args.products:
         install_product(product, page)
 

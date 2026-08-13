@@ -66,6 +66,28 @@ User-local install writes to:
 
 Make sure `~/.local/bin` appears before `/usr/bin` in `PATH` if a legacy APT package is still installed.
 
+## Checking for Updates
+
+`--check` compares the installed versions against the official download page and exits without downloading anything. It needs no `sudo` and no `ANTIGRAVITY_INSTALL_MODE`, because it looks in both the system and user-local install roots:
+
+```bash
+cd ~/antigravity-installer
+./install.py --check ide app
+```
+
+```text
+Antigravity IDE: installed 2.5.2 at /opt/antigravity-ide, available 2.5.2 (up to date)
+Antigravity: installed 2.8.0 at /opt/antigravity, available 2.8.0 (up to date)
+```
+
+The exit status is `0` when everything is current and `1` when any product is missing or out of date, so it can drive a scheduled check:
+
+```bash
+./install.py --check ide app || notify-send 'Antigravity update available'
+```
+
+Versions come from the `.userlocal-version` file this installer writes into each install root. A product installed by other means has no marker and is reported as not installed.
+
 ## Updating
 
 Run the same install command again. The installer downloads the current official tarball and replaces the install root atomically enough for normal desktop use:

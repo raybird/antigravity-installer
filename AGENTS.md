@@ -85,11 +85,21 @@ For a fresh Ubuntu x86_64 machine:
 
 ## Update Flow
 
+First check whether an update is even needed. This touches nothing and needs no `sudo`:
+
+```bash
+./install.py --check ide app
+```
+
+Exit status is `0` when everything is current, `1` when any product is stale or missing.
+
 To update both products, run the same installer command again:
 
 ```bash
 sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide app
 ```
+
+Quit a running Antigravity app or IDE before updating it, and never run the update from a terminal hosted inside the IDE being replaced. The install root is swapped underneath the running process, so lazily loaded resources start resolving to the new version.
 
 The installer moves the old install roots to `.previous` siblings, such as `/opt/antigravity.previous` and `/opt/antigravity-ide.previous`.
 
