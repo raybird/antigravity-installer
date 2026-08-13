@@ -81,12 +81,6 @@ To update only the IDE:
 sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py ide
 ```
 
-If the releases page shows a newer IDE version but the download page still points to an older Linux tarball, override the IDE tarball URL explicitly:
-
-```bash
-sudo env ANTIGRAVITY_INSTALL_MODE=system ANTIGRAVITY_IDE_URL='https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/2.0.4-6381998290370560/linux-x64/Antigravity%20IDE.tar.gz' ./install.py ide
-```
-
 To update only the Antigravity 2.0 app:
 
 ```bash
@@ -110,6 +104,23 @@ For a single-product update, remove only the matching old root:
 sudo rm -rf /opt/antigravity.previous
 sudo rm -rf /opt/antigravity-ide.previous
 ```
+
+## Overriding the Download URL
+
+Each product accepts an environment variable holding an explicit Linux x64 tarball URL:
+
+- `ANTIGRAVITY_APP_URL` for `app`
+- `ANTIGRAVITY_IDE_URL` for `ide`
+
+Use it when the download page points at an older tarball than the releases page, or when the page layout changes and the installer can no longer find the links:
+
+```bash
+sudo env ANTIGRAVITY_INSTALL_MODE=system \
+  ANTIGRAVITY_IDE_URL='https://edgedl.me.gvt1.com/edgedl/release2/j0qc3/antigravity/stable/2.5.2-6697361355964416/linux-x64/Antigravity%20IDE.tar.gz' \
+  ./install.py ide
+```
+
+When every requested product has an override set, the installer skips the download page entirely, so an override still works if that page cannot be parsed. A URL that does not contain the product's expected `linux-x64` tail is rejected before anything is downloaded.
 
 ## Verify
 

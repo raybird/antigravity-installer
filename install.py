@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import html
 import json
 import os
 import re
@@ -7,13 +8,11 @@ import shlex
 import shutil
 import stat
 import subprocess
-import sys
 import tarfile
 import tempfile
 import gzip
 import urllib.request
 from pathlib import Path
-from urllib.parse import urljoin
 
 
 DOWNLOAD_PAGE = "https://antigravity.google/download"
@@ -32,10 +31,9 @@ ICONS = (
 
 PRODUCTS = {
     "app": {
-        "section_start": 'id:"antigravity-2"',
-        "section_end": '},{name:"command",id:"antigravity-cli"',
         "archive_name": "Antigravity.tar.gz",
         "url_tail": "/linux-x64/Antigravity.tar.gz",
+        "url_override_env": "ANTIGRAVITY_APP_URL",
         "expected_top": "Antigravity-x64",
         "install_root": OPT / "antigravity",
         "command": BIN / "antigravity",
@@ -47,8 +45,6 @@ PRODUCTS = {
         "binary": "antigravity",
     },
     "ide": {
-        "section_start": 'id:"antigravity-ide"',
-        "section_end": '},{name:"download",id:"antigravity-sdk"',
         "archive_name": "Antigravity-IDE.tar.gz",
         "url_tail": "/linux-x64/Antigravity%20IDE.tar.gz",
         "url_override_env": "ANTIGRAVITY_IDE_URL",
@@ -84,12 +80,16 @@ def download(url: str, dest: Path) -> None:
         shutil.copyfileobj(res, out)
 
 
-def find_bundle_url() -> str:
-    html = fetch_text(DOWNLOAD_PAGE)
-    matches = re.findall(r'(?:src|href)="([^"]*main-[^"]+\.js)"', html)
-    if not matches:
-        raise SystemExit("Could not find the Antigravity download bundle")
-    return urljoin(DOWNLOAD_PAGE, matches[-1])
+def override_url(product: str) -> str | None:
+    """Return the user-supplied tarball URL for a product, if one is set."""
+    cfg = PRODUCTS[product]
+    env = cfg["url_override_env"]
+    url = os.environ.get(env)
+    if not url:
+        return None
+    if cfg["url_tail"] not in url:
+        raise SystemExit(f"{env} does not look like a {cfg['name']} Linux x64 tarball URL")
+    return url
 
 
 def extract_download_version(url: str) -> str:
@@ -100,28 +100,26 @@ def extract_download_version(url: str) -> str:
     return version_match.group(1).split("-", 1)[0] if version_match else "unknown"
 
 
-def parse_download(bundle: str, product: str) -> tuple[str, str]:
+def parse_download(page: str, product: str) -> tuple[str, str]:
     cfg = PRODUCTS[product]
-    override_env = cfg.get("url_override_env")
-    if override_env:
-        override_url = os.environ.get(override_env)
-        if override_url:
-            if cfg["url_tail"] not in override_url:
-                raise SystemExit(f"{override_env} does not look like a {cfg['name']} Linux x64 tarball URL")
-            return extract_download_version(override_url), override_url
-
-    start = bundle.find(cfg["section_start"])
-    end = bundle.find(cfg["section_end"], start)
-    if start == -1 or end == -1:
-        raise SystemExit(f"Could not find {product} downloads")
-    section = bundle[start:end]
+    url = override_url(product)
+    if url:
+        return extract_download_version(url), url
 
     tail = re.escape(cfg["url_tail"])
-    match = re.search(r'href:"([^"]+' + tail + r')"', section)
-    if not match:
-        raise SystemExit(f"Could not find Linux x64 download for {product}")
-    url = match.group(1).replace("\\u0026", "&")
-    return extract_download_version(url), url
+    matches = re.findall(r'href="(https://[^"]+' + tail + r'(?:[?#][^"]*)?)"', page)
+    urls = list(dict.fromkeys(html.unescape(match) for match in matches))
+    if not urls:
+        raise SystemExit(
+            f"Could not find the Linux x64 download for {product} on {DOWNLOAD_PAGE}. "
+            f"The page layout may have changed; set {cfg['url_override_env']} "
+            f"to the tarball URL to install anyway."
+        )
+    if len(urls) > 1:
+        print(f"Warning: {len(urls)} Linux x64 URLs found for {product}; using the first:")
+        for candidate in urls:
+            print(f"  {candidate}")
+    return extract_download_version(urls[0]), urls[0]
 
 
 def extract_icon(asar: Path, output: Path) -> None:
@@ -151,9 +149,9 @@ def remove_legacy_restart_helper(path: Path) -> None:
         path.unlink()
 
 
-def install_product(product: str, bundle: str) -> None:
+def install_product(product: str, page: str) -> None:
     cfg = PRODUCTS[product]
-    version, url = parse_download(bundle, product)
+    version, url = parse_download(page, product)
     root = cfg["install_root"]
     top = cfg.get("install_top", cfg["expected_top"])
     target_dir = root / top
@@ -173,7 +171,11 @@ def install_product(product: str, bundle: str) -> None:
             top_dir = names[0].split("/", 1)[0]
             if top_dir != cfg["expected_top"]:
                 raise SystemExit(f"Unexpected archive directory: {top_dir}")
-            tar.extractall(tmp_path)
+            # filter="data" blocks path traversal and strips setuid bits; the
+            # installer re-applies setuid to chrome-sandbox itself below.
+            # The keyword only exists on Python 3.11.4+.
+            extract_args = {"filter": "data"} if hasattr(tarfile, "data_filter") else {}
+            tar.extractall(tmp_path, **extract_args)
 
         extracted = tmp_path / cfg["expected_top"]
         if product == "ide":
@@ -270,10 +272,13 @@ def main() -> None:
     if os.uname().machine not in {"x86_64", "amd64"}:
         raise SystemExit(f"Unsupported architecture for this installer: {os.uname().machine}")
 
-    bundle_url = find_bundle_url()
-    bundle = fetch_text(bundle_url)
+    # Validate every override up front, then skip the download page entirely
+    # when it has nothing left to resolve. This keeps the overrides usable as
+    # an escape hatch when the page layout changes.
+    overrides = [override_url(product) for product in args.products]
+    page = "" if all(overrides) else fetch_text(DOWNLOAD_PAGE)
     for product in args.products:
-        install_product(product, bundle)
+        install_product(product, page)
 
     if shutil.which("update-desktop-database"):
         subprocess.run(["update-desktop-database", str(APPS)], check=False)

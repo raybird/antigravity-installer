@@ -106,8 +106,19 @@ After confirming the new version works, the `.previous` directories may be remov
 
   ```bash
   python3 -m py_compile install.py
+  python3 -m unittest discover -s tests
   git status --short
   ```
+
+## Download Page Parsing
+
+`install.py` resolves tarball URLs by reading `https://antigravity.google/download` and matching `href="…<url_tail>"` for each product. This is the most fragile part of the installer: it depends on the shape of a page nobody here controls, and a silent break leaves the machine unable to update.
+
+Rules for changing it:
+
+- `tests/fixtures/download_page.html` is a trimmed excerpt of the real page. When the page changes, capture a fresh excerpt and update the fixture and the expected versions in `tests/test_install_config.py` together.
+- Keep the fixture authentic. Do not hand-write idealized markup; copy the real `<li>`/`<a>` elements.
+- Every product must keep a `url_override_env`. That override is the escape hatch when the page breaks, so it must never depend on the page being parseable.
 
 ## Git Notes
 

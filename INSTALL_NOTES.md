@@ -42,7 +42,7 @@ The installer was written as a small standard-library Python script rather than 
 
 Reasons:
 
-- The official download page is a frontend app; the script has to resolve the current JavaScript bundle and extract Linux x64 download URLs.
+- The official download page changes shape without notice, so the script has to locate the Linux x64 download URLs at runtime rather than hardcode them.
 - The download page may return gzip-compressed HTML, so the fetch logic handles gzip explicitly.
 - The App and IDE tarballs have different layouts.
 - The IDE archive top-level directory contains a space, so the installer normalizes it to `Antigravity-IDE` for stable paths.
@@ -173,6 +173,40 @@ During the initial install, the App resolved to `2.0.6`. During a later reinstal
 This is expected because the installer intentionally resolves the latest available URLs from the official page at runtime.
 
 `INSTALLATION.md` records the public, redacted current observed state. `INSTALLATION.local.md` may exist locally for exact machine-specific values and is ignored by git.
+
+## Download Page Rewrite Broke The Installer (2026-08-13)
+
+Roughly seven weeks after the 2026-06-24 install, the installer stopped working entirely:
+
+```text
+Could not find the Antigravity download bundle
+```
+
+The download page had been rebuilt as an Astro static site. The original parser assumed a client-rendered frontend: it searched the HTML for a `main-*.js` bundle, fetched it, then sliced product sections out of the minified JavaScript using literal markers such as `id:"antigravity-2"`. The new page ships no `main-*.js` at all, so the very first step failed and nothing downstream ever ran.
+
+Two things made this worse than a simple breakage:
+
+- It failed silently in the sense that nobody noticed for seven weeks. The installed versions simply drifted (IDE `2.1.1` vs `2.5.2` upstream, App `2.1.4` vs `2.8.0`), and nothing surfaces that gap until someone runs the installer.
+- The `ANTIGRAVITY_IDE_URL` escape hatch could not rescue it. `main()` fetched the bundle before `parse_download()` ever checked the override, so the override was unreachable precisely when it was needed.
+
+The new page is easier to parse: the tarball URLs sit directly in the HTML as ordinary `href` attributes. The bundle indirection and the minified-JS section markers were deleted, and each product is now located by its existing `url_tail`, which is already unique per product:
+
+```text
+app: /linux-x64/Antigravity.tar.gz
+ide: /linux-x64/Antigravity%20IDE.tar.gz
+```
+
+Note that the App tarball also moved hosts, from `edgedl.me.gvt1.com` to `storage.googleapis.com`, and its path segment changed from `antigravity` to `antigravity-hub`. Version extraction survived that unchanged because it matches the `<semver>-<build>` path segment rather than the host.
+
+Changes made in response:
+
+- Parse the download page HTML directly; drop `find_bundle_url()` and the `section_start` / `section_end` markers.
+- Check URL overrides before any network request, and skip fetching the page entirely when every requested product has one. Overrides are validated up front so a bad URL fails before a download starts.
+- Add `ANTIGRAVITY_APP_URL` so the App has the same escape hatch as the IDE.
+- Extract tarballs with `filter="data"` where available, which blocks path traversal and removes the Python 3.14 default-change hazard. The filter strips setuid bits, but the installer sets `chrome-sandbox` to `4755` itself afterwards, so behaviour is unchanged.
+- Add `tests/fixtures/download_page.html`, a trimmed excerpt of the real page, and cover the parser with it. The old code had zero coverage on this path, which is why the break went unnoticed.
+
+The lesson worth keeping: the fragile part of this installer is not the install logic, it is the dependency on someone else's marketing page. That part needs both a test that pins the current shape and an override that works when the shape changes.
 
 ## Repository Hygiene
 
