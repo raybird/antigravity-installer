@@ -71,7 +71,7 @@ curl -fsSL $BOOTSTRAP | sudo sh -s -- --force ide   # repair a damaged install
 `main` moves whenever this repo changes, so the one-line install runs whatever it holds at that moment. To run a fixed revision instead, pin the ref in both the URL and the environment, so `install.sh` fetches `install.py` from the same revision it came from:
 
 ```bash
-REF=v1.0.1   # any tag or commit SHA in this repo
+REF=v1.0.2   # any tag or commit SHA in this repo
 curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/$REF/install.sh \
   | sudo env ANTIGRAVITY_INSTALLER_REF=$REF sh
 ```
