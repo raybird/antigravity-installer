@@ -29,6 +29,41 @@ The installer also sets Electron `chrome-sandbox` to root-owned `4755` during sy
 - Network access to `https://antigravity.google/download`
 - `sudo` for system-wide install
 
+## Quick Install
+
+No clone required. `install.sh` fetches `install.py` and runs it:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh | sudo sh
+```
+
+That installs both products system-wide. Running as root selects the system install; without root the install is user-local, so the same line without `sudo` installs under `~/.local`.
+
+Arguments after `-s --` go straight to `install.py`:
+
+```bash
+BOOTSTRAP=https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh
+
+curl -fsSL $BOOTSTRAP | sh -s -- --check ide app    # report versions, no sudo
+curl -fsSL $BOOTSTRAP | sudo sh -s -- ide           # IDE only
+curl -fsSL $BOOTSTRAP | sudo sh -s -- --force ide   # repair a damaged install
+```
+
+`main` moves whenever this repo changes. To run a fixed revision instead, pin the ref:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/v1.0.0/install.sh \
+  | sudo env ANTIGRAVITY_INSTALLER_REF=v1.0.0 sh
+```
+
+Piping a remote script into a root shell runs whatever that URL currently serves. Read it first if that matters to you:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh | less
+```
+
+Run `--check` without `sudo`. Under `sudo` the fallback lookup uses root's home, so a user-local install is not found.
+
 ## Usage
 
 Install both the IDE and the Antigravity 2.0 app system-wide:

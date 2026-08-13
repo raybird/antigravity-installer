@@ -10,6 +10,7 @@ This repository contains a Linux installer and installation record for Google An
 - `KNOWN_ISSUES.md`: public list of observed Linux-specific issues and workarounds.
 - `INSTALLATION.local.md`: local-only machine record. This file is ignored by git and must not be committed.
 - `install.py`: installer script.
+- `install.sh`: bootstrap for `curl … | sudo sh`. Fetches `install.py` from this repo and runs it, so its default ref (`main`) must always hold a working `install.py`.
 
 ## Fresh Ubuntu Checklist
 
