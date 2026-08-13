@@ -22,11 +22,12 @@ LOCAL = Path("/usr/local") if SYSTEM_INSTALL else HOME / ".local"
 BIN = Path("/usr/local/bin") if SYSTEM_INSTALL else LOCAL / "bin"
 OPT = Path("/opt") if SYSTEM_INSTALL else LOCAL / "opt"
 APPS = Path("/usr/share/applications") if SYSTEM_INSTALL else LOCAL / "share" / "applications"
-ICONS = (
-    Path("/usr/share/icons/hicolor/512x512/apps")
+ICON_THEME = (
+    Path("/usr/share/icons/hicolor")
     if SYSTEM_INSTALL
-    else LOCAL / "share" / "icons" / "hicolor" / "512x512" / "apps"
+    else LOCAL / "share" / "icons" / "hicolor"
 )
+ICONS = ICON_THEME / "512x512" / "apps"
 
 
 PRODUCTS = {
@@ -76,6 +77,10 @@ ALT_OPT = HOME / ".local" / "opt" if SYSTEM_INSTALL else Path("/opt")
 GUI_DATA = LOCAL / "share" / "antigravity-installer"
 GUI_COMMAND = BIN / "antigravity-manager"
 GUI_DESKTOP = APPS / "antigravity-manager.desktop"
+GUI_ICON_FILE = "antigravity-manager.svg"
+GUI_ICON = ICON_THEME / "scalable" / "apps" / GUI_ICON_FILE
+# Used when the SVG is not alongside install.py; every icon theme ships this one.
+GUI_ICON_FALLBACK = "system-software-install"
 
 
 def fetch_text(url: str) -> str:
@@ -326,6 +331,19 @@ def install_gui() -> bool:
     )
     GUI_COMMAND.chmod(0o755)
 
+    # The icon is optional so a bare install.py + gui.py pair still works.
+    icon_source = source_dir / GUI_ICON_FILE
+    icon_name = GUI_ICON_FALLBACK
+    if icon_source.exists():
+        GUI_ICON.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(icon_source, GUI_ICON)
+        # A second copy next to gui.py gives the window an icon even before the
+        # icon theme cache picks the new file up.
+        shutil.copy2(icon_source, GUI_DATA / GUI_ICON_FILE)
+        icon_name = GUI_ICON.stem
+    else:
+        print(f"Warning: {GUI_ICON_FILE} not found, using the {icon_name} icon")
+
     APPS.mkdir(parents=True, exist_ok=True)
     GUI_DESKTOP.write_text(
         "\n".join(
@@ -334,7 +352,7 @@ def install_gui() -> bool:
                 "Name=Antigravity Manager",
                 "Comment=Check versions and install or update Google Antigravity",
                 f"Exec={GUI_COMMAND}",
-                "Icon=system-software-install",
+                f"Icon={icon_name}",
                 "Terminal=false",
                 "Type=Application",
                 "Categories=Development;",
@@ -445,7 +463,7 @@ def main() -> None:
     if shutil.which("update-desktop-database"):
         subprocess.run(["update-desktop-database", str(APPS)], check=False)
     if shutil.which("gtk-update-icon-cache"):
-        subprocess.run(["gtk-update-icon-cache", "-q", str(LOCAL / "share" / "icons" / "hicolor")], check=False)
+        subprocess.run(["gtk-update-icon-cache", "-q", "-f", "-t", str(ICON_THEME)], check=False)
 
 
 if __name__ == "__main__":

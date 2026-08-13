@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <title>Antigravity Manager</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7C6BFF"/>
+      <stop offset="1" stop-color="#3B2ECC"/>
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="448" height="448" rx="104" fill="url(#tile)"/>
+  <!-- Rising arrow: the payload being lifted off its pad. -->
+  <path d="M256 116 361 226 296 226 296 330 216 330 216 226 151 226 Z" fill="#FFFFFF"/>
+  <rect x="151" y="344" width="210" height="52" rx="26" fill="#FFFFFF" opacity="0.72"/>
+</svg>

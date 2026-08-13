@@ -51,6 +51,13 @@ class ManagerWindow(Gtk.Window):
         super().__init__(title="Antigravity Manager")
         self.set_default_size(640, 460)
         self.set_border_width(12)
+        # Prefer the file shipped next to gui.py so the window has an icon even
+        # when running from a clone, before anything is registered with a theme.
+        icon_file = HERE / "antigravity-manager.svg"
+        if icon_file.exists():
+            self.set_icon_from_file(str(icon_file))
+        else:
+            self.set_icon_name("antigravity-manager")
         self.busy = False
         self.available = {}
         self.rows = {}

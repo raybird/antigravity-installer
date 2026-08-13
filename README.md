@@ -91,9 +91,12 @@ curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/
 
 That writes:
 
-- `/usr/local/share/antigravity-installer/{gui.py,install.py}` — the GUI and the installer it drives
+- `/usr/local/share/antigravity-installer/{gui.py,install.py,antigravity-manager.svg}` — the GUI, the installer it drives, and the window icon
 - `/usr/local/bin/antigravity-manager` — launcher command
 - `/usr/share/applications/antigravity-manager.desktop` — application-menu entry
+- `/usr/share/icons/hicolor/scalable/apps/antigravity-manager.svg` — menu icon
+
+`antigravity-manager.svg` is this repo's own icon, deliberately unlike the Antigravity product icons so the manager is not mistaken for the app in the menu. If it is missing, the desktop entry falls back to the stock `system-software-install` icon.
 
 Without root the same paths move under `~/.local`. The copies are a snapshot; re-run `--install-gui` to refresh them.
 
@@ -323,7 +326,8 @@ If the GUI was installed with `--install-gui`, remove it too:
 ```bash
 sudo rm -rf /usr/local/share/antigravity-installer \
   /usr/local/bin/antigravity-manager \
-  /usr/share/applications/antigravity-manager.desktop
+  /usr/share/applications/antigravity-manager.desktop \
+  /usr/share/icons/hicolor/scalable/apps/antigravity-manager.svg
 ```
 
 This does not remove user data under `~/.config`, `~/.cache`, `~/.gemini`, or `~/.antigravity-ide`.

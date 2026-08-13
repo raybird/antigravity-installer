@@ -24,6 +24,7 @@ REF="${ANTIGRAVITY_INSTALLER_REF:-main}"
 BASE="${ANTIGRAVITY_INSTALLER_BASE:-https://raw.githubusercontent.com/$REPO/$REF}"
 SOURCE="${ANTIGRAVITY_INSTALLER_SOURCE:-$BASE/install.py}"
 GUI_SOURCE="${ANTIGRAVITY_INSTALLER_GUI_SOURCE:-$BASE/gui.py}"
+ICON_SOURCE="${ANTIGRAVITY_INSTALLER_ICON_SOURCE:-$BASE/antigravity-manager.svg}"
 
 die() {
     echo "install.sh: $*" >&2
@@ -80,6 +81,14 @@ if [ "$wants_gui" = "1" ]; then
     fetch "$GUI_SOURCE" >"$tmp/gui.py" || die "could not download $GUI_SOURCE"
     head -n 1 "$tmp/gui.py" | grep -q '^#!/usr/bin/env python3$' ||
         die "downloaded file is not gui.py"
+    # The icon is optional: install.py falls back to a stock one without it.
+    if fetch "$ICON_SOURCE" >"$tmp/antigravity-manager.svg" 2>/dev/null &&
+        grep -q '<svg' "$tmp/antigravity-manager.svg"; then
+        :
+    else
+        rm -f "$tmp/antigravity-manager.svg"
+        echo "install.sh: could not fetch the icon, falling back to a stock one" >&2
+    fi
 fi
 
 python3 "$tmp/install.py" "$@"
