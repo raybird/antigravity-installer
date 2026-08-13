@@ -78,6 +78,8 @@ GUI_DATA = LOCAL / "share" / "antigravity-installer"
 GUI_COMMAND = BIN / "antigravity-manager"
 GUI_DESKTOP = APPS / "antigravity-manager.desktop"
 GUI_ICON_FILE = "antigravity-manager.svg"
+# gui.py falls back to this interpreter when the one on PATH cannot import gi.
+SYSTEM_PYTHON = "/usr/bin/python3"
 GUI_ICON = ICON_THEME / "scalable" / "apps" / GUI_ICON_FILE
 # Used when the SVG is not alongside install.py; every icon theme ships this one.
 GUI_ICON_FALLBACK = "system-software-install"
@@ -306,6 +308,39 @@ def read_version_marker(root: Path) -> str | None:
     return version or None
 
 
+def gui_runtime_problems() -> list[str]:
+    """Report what the GUI needs at run time but this machine does not have.
+
+    These are warnings, not errors: the launcher is still worth installing
+    because the missing packages can be added afterwards. Without this the only
+    symptom is a menu entry that does nothing when clicked.
+    """
+    problems = []
+    probe = "import gi; gi.require_version('Gtk', '3.0'); from gi.repository import Gtk"
+    # Mirror what gui.py does: try PATH first, then the system interpreter.
+    interpreters = [shutil.which("python3"), SYSTEM_PYTHON]
+    for interpreter in interpreters:
+        if not interpreter or not Path(interpreter).exists():
+            continue
+        try:
+            probed = subprocess.run([interpreter, "-c", probe], capture_output=True, timeout=60)
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if probed.returncode == 0:
+            break
+    else:
+        problems.append(
+            "PyGObject with GTK 3 is missing, so the GUI will not start. "
+            "On Ubuntu: sudo apt install python3-gi gir1.2-gtk-3.0"
+        )
+    if not shutil.which("pkexec"):
+        problems.append(
+            "pkexec is missing, so the GUI cannot run a system install. "
+            "On Ubuntu: sudo apt install policykit-1"
+        )
+    return problems
+
+
 def install_gui() -> bool:
     """Install gui.py plus a launcher command and desktop entry."""
     source_dir = Path(__file__).resolve().parent
@@ -364,6 +399,8 @@ def install_gui() -> bool:
     GUI_DESKTOP.chmod(GUI_DESKTOP.stat().st_mode | stat.S_IXUSR)
 
     print(f"Installed Antigravity Manager at {GUI_COMMAND}")
+    for problem in gui_runtime_problems():
+        print(f"Warning: {problem}")
     return True
 
 

@@ -3,6 +3,7 @@ import io
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import install
@@ -238,6 +239,122 @@ class SkipWhenCurrentTest(unittest.TestCase):
             with self.download_forbidden():
                 with self.assertRaises(RuntimeError):
                     install.install_product("ide", download_page())
+
+
+class InstallGuiTest(unittest.TestCase):
+    @contextlib.contextmanager
+    def staging(self):
+        with TemporaryDirectory() as tmp:
+            tmp = Path(tmp)
+            targets = {
+                "GUI_DATA": tmp / "share" / "antigravity-installer",
+                "GUI_COMMAND": tmp / "bin" / "antigravity-manager",
+                "GUI_DESKTOP": tmp / "applications" / "antigravity-manager.desktop",
+                "GUI_ICON": tmp / "icons" / "scalable" / "apps" / install.GUI_ICON_FILE,
+                "BIN": tmp / "bin",
+                "APPS": tmp / "applications",
+            }
+            with contextlib.ExitStack() as stack:
+                for name, value in targets.items():
+                    stack.enter_context(patch.object(install, name, value))
+                out = io.StringIO()
+                stack.enter_context(contextlib.redirect_stdout(out))
+                yield targets
+
+    def test_copies_both_scripts_and_makes_them_executable(self):
+        with self.staging() as targets:
+            self.assertTrue(install.install_gui())
+
+            for name in ("gui.py", "install.py"):
+                copied = targets["GUI_DATA"] / name
+                self.assertTrue(copied.exists(), name)
+                self.assertTrue(copied.stat().st_mode & 0o111, f"{name} not executable")
+
+    def test_launcher_points_at_the_installed_copy(self):
+        with self.staging() as targets:
+            install.install_gui()
+
+            launcher = targets["GUI_COMMAND"].read_text()
+            self.assertIn(str(targets["GUI_DATA"] / "gui.py"), launcher)
+            self.assertTrue(targets["GUI_COMMAND"].stat().st_mode & 0o111)
+
+    def test_desktop_entry_executes_the_launcher(self):
+        with self.staging() as targets:
+            install.install_gui()
+
+            entry = targets["GUI_DESKTOP"].read_text()
+            self.assertIn("Type=Application", entry)
+            self.assertIn(f"Exec={targets['GUI_COMMAND']}", entry)
+
+    def test_installs_the_icon_and_references_it_by_name(self):
+        with self.staging() as targets:
+            install.install_gui()
+
+            self.assertTrue(targets["GUI_ICON"].exists())
+            self.assertIn("<svg", targets["GUI_ICON"].read_text())
+            # A copy next to gui.py gives the window an icon immediately.
+            self.assertTrue((targets["GUI_DATA"] / install.GUI_ICON_FILE).exists())
+            self.assertIn("Icon=antigravity-manager\n", targets["GUI_DESKTOP"].read_text())
+
+    def test_falls_back_to_a_stock_icon_when_the_svg_is_missing(self):
+        with self.staging() as targets:
+            with patch.object(install, "GUI_ICON_FILE", "not-shipped.svg"):
+                install.install_gui()
+
+            entry = targets["GUI_DESKTOP"].read_text()
+            self.assertIn(f"Icon={install.GUI_ICON_FALLBACK}\n", entry)
+            self.assertFalse(targets["GUI_ICON"].exists())
+
+    def test_reinstall_overwrites_an_existing_launcher(self):
+        with self.staging() as targets:
+            install.install_gui()
+            targets["GUI_COMMAND"].write_text("#!/bin/sh\nstale\n")
+            install.install_gui()
+
+            self.assertNotIn("stale", targets["GUI_COMMAND"].read_text())
+
+
+class GuiRuntimeProblemsTest(unittest.TestCase):
+    """--install-gui warns instead of leaving a menu entry that does nothing."""
+
+    @staticmethod
+    def probe(returncode):
+        return patch.object(
+            install.subprocess, "run", return_value=SimpleNamespace(returncode=returncode)
+        )
+
+    def test_silent_when_gtk_and_pkexec_are_present(self):
+        with patch.object(install.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"):
+            with self.probe(0):
+                self.assertEqual(install.gui_runtime_problems(), [])
+
+    def test_reports_missing_pygobject(self):
+        with patch.object(install.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"):
+            with self.probe(1):
+                problems = install.gui_runtime_problems()
+
+        self.assertEqual(len(problems), 1)
+        self.assertIn("PyGObject", problems[0])
+        self.assertIn("python3-gi", problems[0])
+
+    def test_reports_missing_pkexec(self):
+        with patch.object(
+            install.shutil,
+            "which",
+            side_effect=lambda name: None if name == "pkexec" else f"/usr/bin/{name}",
+        ):
+            with self.probe(0):
+                problems = install.gui_runtime_problems()
+
+        self.assertEqual(len(problems), 1)
+        self.assertIn("pkexec", problems[0])
+
+    def test_reports_both(self):
+        with patch.object(install.shutil, "which", return_value=None):
+            with self.probe(1):
+                problems = install.gui_runtime_problems()
+
+        self.assertEqual(len(problems), 2)
 
 
 class ExtractDownloadVersionTest(unittest.TestCase):

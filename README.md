@@ -120,11 +120,15 @@ That writes:
 
 Without root the same paths move under `~/.local`. The copies are a snapshot; re-run `--install-gui` to refresh them.
 
-It needs PyGObject and GTK 3, which Ubuntu GNOME already has. On a system without them:
+It needs PyGObject and GTK 3, which Ubuntu GNOME already has, plus `pkexec` for system installs. `--install-gui` checks for both and warns without failing, since the packages can be added afterwards:
 
-```bash
-sudo apt install python3-gi gir1.2-gtk-3.0
+```text
+Installed Antigravity Manager at /usr/local/bin/antigravity-manager
+Warning: PyGObject with GTK 3 is missing, so the GUI will not start. On Ubuntu: sudo apt install python3-gi gir1.2-gtk-3.0
+Warning: pkexec is missing, so the GUI cannot run a system install. On Ubuntu: sudo apt install policykit-1
 ```
+
+A minimal or server install, or a non-GNOME desktop, is where these are most likely to be absent.
 
 PyGObject belongs to the system Python, so `gui.py` re-execs itself under `/usr/bin/python3` when the interpreter it was started with cannot import `gi`. That makes it work unchanged under pyenv, asdf, or a virtualenv.
 

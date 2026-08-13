@@ -13,6 +13,8 @@ This repository contains a Linux installer and installation record for Google An
 - `install.sh`: bootstrap for `curl … | sudo sh`. Fetches `install.py` from this repo and runs it, so its default ref (`main`) must always hold a working `install.py`.
 - `gui.py`: GTK front end. It imports `install.py` rather than reimplementing any version logic, and shells out to `install.py` (via `pkexec` for system installs) to do the work. Keep it that way, so the GUI can never report something the CLI would not.
 - `antigravity-manager.svg`: icon for the GUI. Deliberately unlike the Antigravity product icons, and optional — `install.py` falls back to a stock icon name when it is absent.
+
+`--install-gui` warns about missing PyGObject or `pkexec` rather than refusing to install, because those packages can be added later. Keep it a warning: making it fatal would block a valid "install now, add the packages afterwards" flow. Keep it present too — without it the only symptom is a menu entry that silently does nothing.
 - `tests/test_install_config.py`: the whole test suite. `tests/fixtures/download_page.html` is a trimmed excerpt of the real download page.
 
 Three entry points reach the same code: `install.sh` downloads and runs `install.py`, `gui.py` imports and runs `install.py`, and `install.py` runs standalone. Any behaviour change belongs in `install.py` so all three inherit it.
