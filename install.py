@@ -299,6 +299,18 @@ def install_roots(product: str) -> list[Path]:
     return [root] if alt == root else [root, alt]
 
 
+def install_root_for_mode(product: str, system_mode: bool) -> Path:
+    """Return the install root selected by an explicit install mode.
+
+    ``installed_version`` intentionally searches both roots for the CLI's
+    mode-independent ``--check`` command. The GUI needs the opposite: it must
+    inspect the exact root that its next install command will modify.
+    """
+    root = PRODUCTS[product]["install_root"]
+    alt = ALT_OPT / root.name
+    return root if system_mode == SYSTEM_INSTALL else alt
+
+
 def read_version_marker(root: Path) -> str | None:
     """Return the version recorded in one specific install root."""
     try:
@@ -411,6 +423,13 @@ def installed_version(product: str) -> tuple[str, Path] | None:
         if version:
             return version, root
     return None
+
+
+def installed_version_for_mode(product: str, system_mode: bool) -> tuple[str, Path] | None:
+    """Return the version installed at one explicit system or user root."""
+    root = install_root_for_mode(product, system_mode)
+    version = read_version_marker(root)
+    return (version, root) if version else None
 
 
 def check_products(products: list[str], page: str) -> None:

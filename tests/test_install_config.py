@@ -158,6 +158,22 @@ class InstalledVersionTest(unittest.TestCase):
         with fake_install_root("ide", "2.5.2", alt_version="2.1.1") as (root, _):
             self.assertEqual(install.installed_version("ide"), ("2.5.2", root))
 
+    def test_reads_the_explicit_user_or_system_install_root(self):
+        with fake_install_root("ide", "2.1.1", alt_version="2.5.2") as (root, alt):
+            self.assertEqual(
+                install.installed_version_for_mode("ide", False),
+                ("2.1.1", root),
+            )
+            self.assertEqual(
+                install.installed_version_for_mode("ide", True),
+                ("2.5.2", alt),
+            )
+
+    def test_explicit_mode_returns_none_when_that_root_is_missing(self):
+        with fake_install_root("ide", None, alt_version="2.5.2"):
+            self.assertIsNone(install.installed_version_for_mode("ide", False))
+            self.assertEqual(install.installed_version_for_mode("ide", True)[0], "2.5.2")
+
 
 class CheckProductsTest(unittest.TestCase):
     def run_check(self, products):

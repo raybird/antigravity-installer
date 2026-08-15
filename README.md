@@ -71,7 +71,7 @@ curl -fsSL $BOOTSTRAP | sudo sh -s -- --force ide   # repair a damaged install
 `main` moves whenever this repo changes, so the one-line install runs whatever it holds at that moment. To run a fixed revision instead, pin the ref in both the URL and the environment, so `install.sh` fetches `install.py` from the same revision it came from:
 
 ```bash
-REF=v1.0.2   # any tag or commit SHA in this repo
+REF=v1.1.0   # any tag or commit SHA in this repo
 curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/$REF/install.sh \
   | sudo env ANTIGRAVITY_INSTALLER_REF=$REF sh
 ```
@@ -93,7 +93,7 @@ cd ~/antigravity-installer
 ./gui.py
 ```
 
-Every version it reports comes from `install.py`, so the GUI and `--check` can never disagree. Installing runs `install.py` through `pkexec`, which asks for authorisation the usual desktop way; untick *系統安裝* to install under `~/.local` with no prompt. Installer output is streamed into the window.
+Every version it reports comes from `install.py`, so the GUI and `--check` can never disagree. Choose *系統範圍* to install under `/opt` through `pkexec` and the usual desktop authorisation dialog, or choose *僅目前使用者* to install under `~/.local` with no prompt. The manager follows an existing installation location when it opens, and installer output is available in the expandable log.
 
 `--install-gui` installs it properly, with a launcher command and an application-menu entry, so no clone has to stay on disk:
 
