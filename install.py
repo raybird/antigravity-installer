@@ -404,6 +404,7 @@ def install_gui() -> bool:
                 "Type=Application",
                 "Categories=Development;",
                 "StartupNotify=true",
+                "StartupWMClass=antigravity-manager",
                 "",
             ]
         )

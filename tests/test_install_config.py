@@ -301,6 +301,7 @@ class InstallGuiTest(unittest.TestCase):
             entry = targets["GUI_DESKTOP"].read_text()
             self.assertIn("Type=Application", entry)
             self.assertIn(f"Exec={targets['GUI_COMMAND']}", entry)
+            self.assertIn("StartupWMClass=antigravity-manager\n", entry)
 
     def test_installs_the_icon_and_references_it_by_name(self):
         with self.staging() as targets:

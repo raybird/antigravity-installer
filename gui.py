@@ -753,6 +753,8 @@ class ManagerWindow(Gtk.Window):
             self.append_log(f"無法執行安裝程式: {error}\n")
         if returncode == 0:
             self.append_log("安裝完成，正在重新檢查版本…\n")
+            # Hand off from installation to refresh(), which ignores busy requests.
+            self.set_busy(False)
             self.refresh()
             return
         if returncode == 126:
@@ -768,6 +770,10 @@ class ManagerWindow(Gtk.Window):
 def main():
     if not (HERE / "install.py").exists():
         raise SystemExit(f"install.py not found next to gui.py: {HERE / 'install.py'}")
+    # Match the desktop file on Wayland and the window class on X11.
+    GLib.set_prgname("antigravity-manager")
+    GLib.set_application_name("Antigravity Manager")
+    Gdk.set_program_class("antigravity-manager")
     window = ManagerWindow()
     window.connect("destroy", Gtk.main_quit)
     window.show_all()
