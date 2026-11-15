@@ -154,7 +154,7 @@ The final design is:
 
 ```text
 /usr/local/bin/antigravity
-  -> shell wrapper that execs /opt/antigravity/Antigravity-x64/antigravity --ozone-platform=x11 "$@"
+  -> shell wrapper that detaches the App by default; ANTIGRAVITY_FOREGROUND=1 uses exec for foreground logs
 
 /usr/local/bin/antigravity-ide
   -> shell wrapper that execs /opt/antigravity-ide/Antigravity-IDE/bin/antigravity-ide --ozone-platform=x11 "$@"
@@ -235,6 +235,16 @@ That last part is a real trap: PyGObject lives in the system Python, while `pyth
 **Its own icon.** `--install-gui` places `antigravity-manager.svg` in the hicolor theme. Reusing the Antigravity app icon was rejected: the manager would be indistinguishable from the app in the application menu, and the icon only exists once the app is installed. The shipped icon is optional, and a stock `system-software-install` is used when it is absent.
 
 While wiring that up, a long-standing path bug surfaced: on system install, icons are written to `/usr/share/icons/hicolor` but `gtk-update-icon-cache` was being pointed at `/usr/local/share/icons/hicolor`. The cache for the directory actually written was never refreshed. Both now derive from one `ICON_THEME` constant.
+
+## Manager Progress, Identity, and Logo (2026-11-15)
+
+In `v1.1.1`, the post-install refresh was fixed by releasing the installation busy state before starting the version check. The same release set the program name and X11 program class to `antigravity-manager`, matching the desktop file and its `StartupWMClass`. Wayland protocol checks confirmed the updated manager reports that application ID and resolves the installed SVG.
+
+An installed manager is a copy, so updating the repository does not update the application-menu launcher. Direct system updates must use `sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py --install-gui`; `sudo` alone does not choose system mode in `install.py`. The bootstrap selects its mode from root status. This distinction explains how a reinstall can succeed while leaving the system manager unchanged.
+
+In `v1.2.0`, `install.py` added opt-in, flushed progress events through `--progress-json`. The GUI consumes these events from its installer subprocess, including when started through `pkexec`, instead of guessing progress from human-readable log messages. Download byte counts are reported at most every 0.1 seconds plus initial and final updates. Missing download sizes and extraction, copying, and configuration use an animated indicator rather than estimated percentages. The indicator stays active through the final version check, and its timer is removed on completion, failure, or window destruction.
+
+The final Logo uses one blue-violet Antigravity-inspired silhouette with an upward arrow formed by negative space on a light tile. It replaces the earlier purple arrow and the intermediate compositions with separate corner marks. The SVG was checked at 32px, 64px, and 512px and remains optional for installations without the asset. In `v1.2.1`, the README began referencing that same SVG directly.
 
 ## Repository Hygiene
 

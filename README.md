@@ -124,6 +124,22 @@ That writes:
 
 Without root the same paths move under `~/.local`. The copies are a snapshot; re-run `--install-gui` to refresh them.
 
+### Updating the manager
+
+Updating App or IDE from the manager does not update the manager itself. To refresh its scripts, Logo, and desktop entry, run this from an updated clone for a system installation:
+
+```bash
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py --install-gui
+```
+
+For a user-local manager, run `./install.py --install-gui` without `sudo`. The one-line `curl … | sudo sh -s -- --install-gui` command above also updates a system manager.
+
+When running `install.py` directly, `sudo` alone does not select system mode: without `ANTIGRAVITY_INSTALL_MODE=system`, it uses the invoking user's home, which under `sudo` may be root's home. The `install.sh` bootstrap selects the mode automatically.
+
+Close and reopen the manager after updating. If the dock still shows a generic gear or `gui.py`, see [manager icon troubleshooting](./KNOWN_ISSUES.md#manager-shows-a-gear-icon-or-guipy).
+
+### Runtime requirements
+
 It needs PyGObject and GTK 3, which Ubuntu GNOME already has, plus `pkexec` for system installs. `--install-gui` checks for both and warns without failing, since the packages can be added afterwards:
 
 ```text

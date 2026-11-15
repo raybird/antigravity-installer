@@ -2,6 +2,38 @@
 
 This file records observed Antigravity Linux issues and local workarounds.
 
+## Manager Shows a Gear Icon or gui.py
+
+The manager identity was fixed in `v1.1.1`. Older installed copies may still identify their Wayland windows using the Python script name, so the desktop cannot match the window to `antigravity-manager.desktop`, even when the SVG is installed.
+
+Update the system manager from an updated clone:
+
+```bash
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py --install-gui
+```
+
+Using only `sudo ./install.py --install-gui` does not select system mode and may update a copy under root's home instead. Updating a clone also does not refresh an installed copy by itself.
+
+Close existing manager windows and launch **Antigravity Manager** from the application menu. If a previously pinned gear entry remains, remove that pin and pin the manager's application-menu entry again.
+
+For a system installation, these read-only checks confirm the identity settings and icon copies:
+
+```bash
+grep -nE 'set_prgname|set_program_class' /usr/local/share/antigravity-installer/gui.py
+grep -E '^(Name|Exec|Icon|StartupWMClass)=' /usr/share/applications/antigravity-manager.desktop
+sha256sum antigravity-manager.svg \
+  /usr/local/share/antigravity-installer/antigravity-manager.svg \
+  /usr/share/icons/hicolor/scalable/apps/antigravity-manager.svg
+```
+
+Run the checksum command from the updated clone. The identity values should use `antigravity-manager`, and all three SVG checksums should match. User-local installations use the corresponding paths under `~/.local`.
+
+## Manager Stops at the Post-install Version Check
+
+Fixed in `v1.1.1`. The success handler previously called refresh while the manager was still busy, causing the refresh request to be ignored. Update the manager using the command above.
+
+Since `v1.2.0`, a progress bar shows the download percentage and transferred size when available. Unknown download sizes and installation stages use an animated indicator. After installation, the manager checks versions again; if that network check fails, the UI reports that installation completed but version checking failed, and the refresh button becomes available for retry.
+
 ## Antigravity App Does Not Relaunch Reliably After Close/Quit
 
 ### Status
