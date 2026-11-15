@@ -10,12 +10,14 @@ import stat
 import subprocess
 import tarfile
 import tempfile
+import time
 import gzip
 import urllib.request
 from pathlib import Path
 
 
 DOWNLOAD_PAGE = "https://antigravity.google/download"
+PROGRESS_PREFIX = "ANTIGRAVITY_PROGRESS "
 HOME = Path.home()
 SYSTEM_INSTALL = os.environ.get("ANTIGRAVITY_INSTALL_MODE") == "system"
 LOCAL = Path("/usr/local") if SYSTEM_INSTALL else HOME / ".local"
@@ -94,10 +96,35 @@ def fetch_text(url: str) -> str:
         return data.decode("utf-8", errors="replace")
 
 
-def download(url: str, dest: Path) -> None:
+def emit_progress(enabled, product, phase, **details):
+    """Send opt-in, line-delimited progress to the GUI, including through pkexec."""
+    if enabled:
+        print(PROGRESS_PREFIX + json.dumps(dict(product=product, phase=phase, **details)), flush=True)
+
+
+def download(url: str, dest: Path, progress=None) -> None:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
     with urllib.request.urlopen(req, timeout=120) as res, dest.open("wb") as out:
-        shutil.copyfileobj(res, out)
+        try:
+            total = int(res.headers.get("Content-Length", 0))
+        except ValueError:
+            total = 0
+        total = max(0, total)
+        received = 0
+        last_report = time.monotonic()
+        if progress:
+            progress(received, total)
+        while chunk := res.read(256 * 1024):
+            out.write(chunk)
+            received += len(chunk)
+            now = time.monotonic()
+            if progress and now - last_report >= 0.1:
+                progress(received, total)
+                last_report = now
+        if total and received < total:
+            raise OSError(f"Incomplete download: received {received} of {total} bytes")
+        if progress:
+            progress(received, total)
 
 
 def override_url(product: str) -> str | None:
@@ -169,7 +196,7 @@ def remove_legacy_restart_helper(path: Path) -> None:
         path.unlink()
 
 
-def install_product(product: str, page: str, force: bool = False) -> bool:
+def install_product(product: str, page: str, force: bool = False, progress=False) -> bool:
     """Install one product. Returns False when it was already up to date."""
     cfg = PRODUCTS[product]
     version, url = parse_download(page, product)
@@ -179,6 +206,7 @@ def install_product(product: str, page: str, force: bool = False) -> bool:
     # requested mode uninstalled.
     if not force and read_version_marker(root) == version:
         print(f"{cfg['name']} {version} is already installed at {root}; use --force to reinstall")
+        emit_progress(progress, product, "done", skipped=True)
         return False
     top = cfg.get("install_top", cfg["expected_top"])
     target_dir = root / top
@@ -189,8 +217,14 @@ def install_product(product: str, page: str, force: bool = False) -> bool:
     with tempfile.TemporaryDirectory(prefix=f"antigravity-{product}.") as tmp:
         tmp_path = Path(tmp)
         archive = tmp_path / cfg["archive_name"]
-        download(url, archive)
+        if progress:
+            download(url, archive, lambda received, total: emit_progress(
+                True, product, "download", received=received, total=total,
+            ))
+        else:
+            download(url, archive)
 
+        emit_progress(progress, product, "extract")
         with tarfile.open(archive, "r:gz") as tar:
             names = tar.getnames()
             if not names:
@@ -220,6 +254,7 @@ def install_product(product: str, page: str, force: bool = False) -> bool:
         if not command_launcher.exists():
             raise SystemExit(f"Command launcher not found: {command_launcher}")
 
+        emit_progress(progress, product, "copy")
         staged = root.with_suffix(".new")
         if staged.exists():
             shutil.rmtree(staged)
@@ -242,6 +277,7 @@ def install_product(product: str, page: str, force: bool = False) -> bool:
                 raise SystemExit(f"Could not find icon source for {cfg['name']}")
             shutil.copy2(fallback_icon, icon_staged)
 
+        emit_progress(progress, product, "configure")
         root.parent.mkdir(parents=True, exist_ok=True)
         safe_replace(staged, root)
         BIN.mkdir(parents=True, exist_ok=True)
@@ -289,6 +325,7 @@ def install_product(product: str, page: str, force: bool = False) -> bool:
         cfg["desktop"].chmod(cfg["desktop"].stat().st_mode | stat.S_IXUSR)
 
     print(f"Installed {cfg['name']} {version} at {target_dir}")
+    emit_progress(progress, product, "done")
     return True
 
 
@@ -472,6 +509,10 @@ def main() -> None:
         help="install the Antigravity Manager GUI, its launcher command and its "
         "desktop entry; can be combined with products",
     )
+    parser.add_argument(
+        "--progress-json", action="store_true",
+        help="emit machine-readable progress events alongside installer output",
+    )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         "--check",
@@ -511,7 +552,8 @@ def main() -> None:
         check_products(args.products, page)
         return
 
-    installed = [install_product(product, page, force=args.force) for product in args.products]
+    installed = [install_product(product, page, force=args.force, progress=args.progress_json)
+                 for product in args.products]
     if args.install_gui:
         installed.append(install_gui())
     if not any(installed):

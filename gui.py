@@ -6,6 +6,7 @@ It adds a focused presentation layer around that shared installer so the
 selected installation target, current state, and next action stay explicit.
 """
 import os
+import json
 import shlex
 import subprocess
 import sys
@@ -165,7 +166,7 @@ APP_CSS = """
 
 def install_command(products, system_mode):
     """Build the argv that installs the given products."""
-    base = [sys.executable, str(HERE / "install.py"), *products]
+    base = [sys.executable, "-u", str(HERE / "install.py"), "--progress-json", *products]
     if not system_mode:
         return base
     # pkexec drops the environment, so the install mode is passed through env(1).
@@ -189,6 +190,9 @@ class ManagerWindow(Gtk.Window):
         self.check_ready = False
         self.results = {}
         self.rows = {}
+        self.progress_timer = None
+        self.install_progress_active = False
+        self.connect("destroy", lambda _window: self.stop_progress_pulse())
         self.system_mode = self.preferred_install_mode()
 
         self.load_css()
@@ -334,6 +338,11 @@ class ManagerWindow(Gtk.Window):
         self.status_bar.get_style_context().add_class("status-line")
         status_row.pack_start(self.status_bar, True, True, 0)
         outer.pack_start(status_row, False, False, 0)
+
+        self.progress_bar = Gtk.ProgressBar(show_text=True)
+        self.progress_bar.set_no_show_all(True)
+        self.progress_bar.set_visible(False)
+        outer.pack_start(self.progress_bar, False, False, 0)
 
         self.log_expander = Gtk.Expander(label="顯示安裝記錄")
         self.log_expander.set_expanded(False)
@@ -631,6 +640,57 @@ class ManagerWindow(Gtk.Window):
     def run_in_thread(self, target):
         threading.Thread(target=target, daemon=True).start()
 
+    def stop_progress_pulse(self):
+        if self.progress_timer is not None:
+            GLib.source_remove(self.progress_timer)
+            self.progress_timer = None
+
+    def pulse_progress(self):
+        self.progress_bar.pulse()
+        return True
+
+    def show_progress(self, text, fraction=None):
+        self.progress_bar.set_visible(True)
+        self.progress_bar.set_text(text)
+        if fraction is None:
+            if self.progress_timer is None:
+                self.progress_bar.set_fraction(0)
+                self.progress_timer = GLib.timeout_add(100, self.pulse_progress)
+        else:
+            self.stop_progress_pulse()
+            self.progress_bar.set_fraction(max(0, min(1, fraction)))
+
+    def handle_install_output(self, line):
+        if not line.startswith(install.PROGRESS_PREFIX):
+            self.append_log(line)
+            return
+        try:
+            event = json.loads(line[len(install.PROGRESS_PREFIX):])
+            name = install.PRODUCTS[event["product"]]["name"]
+            phase = event["phase"]
+            if phase == "download":
+                received = max(0, int(event["received"]))
+                total = max(0, int(event["total"]))
+                size = f"{received / 1048576:.1f} MiB"
+                if total:
+                    fraction = min(1, received / total)
+                    self.show_progress(
+                        f"{name} · 下載 {fraction:.0%} · {size} / {total / 1048576:.1f} MiB",
+                        fraction,
+                    )
+                else:
+                    self.show_progress(f"{name} · 正在下載 · {size}")
+            else:
+                label = {
+                    "extract": "正在解壓縮…",
+                    "copy": "正在寫入安裝檔案…",
+                    "configure": "正在設定啟動器與圖示…",
+                    "done": "此項目已完成，正在準備下一步…",
+                }[phase]
+                self.show_progress(f"{name} · {label}")
+        except (ValueError, TypeError, KeyError):
+            self.append_log(line)
+
     # -- version check ---------------------------------------------------
 
     def refresh(self):
@@ -665,6 +725,9 @@ class ManagerWindow(Gtk.Window):
         GLib.idle_add(self._check_done, results)
 
     def _check_failed(self, message):
+        if self.install_progress_active:
+            self.show_progress("安裝已完成，但版本檢查失敗，請重新檢查", 0)
+            self.install_progress_active = False
         self.check_ready = False
         self.results = {}
         self.append_log(f"檢查失敗: {message}\n")
@@ -677,6 +740,9 @@ class ManagerWindow(Gtk.Window):
         self.set_busy(False, "檢查失敗，請檢查網路後重新檢查")
 
     def _check_done(self, results):
+        if self.install_progress_active:
+            self.show_progress("安裝完成，已重新檢查版本", 1)
+            self.install_progress_active = False
         self.results = results
         self.check_ready = True
         self.update_target_view()
@@ -729,6 +795,9 @@ class ManagerWindow(Gtk.Window):
         names = "、".join(install.PRODUCTS[product]["name"] for product in targets)
         self.append_log(f"\n開始安裝：{names}\n$ {shlex.join(command)}\n")
         self.set_busy(True, f"正在安裝 {names}，請稍候…")
+        self.install_progress_active = True
+        self.stop_progress_pulse()
+        self.show_progress("等待系統授權…" if self.system_mode else "正在準備安裝…")
         self.run_in_thread(lambda: self._install_worker(command))
 
     def _install_worker(self, command):
@@ -744,7 +813,7 @@ class ManagerWindow(Gtk.Window):
             GLib.idle_add(self._install_done, 127, str(error))
             return
         for line in process.stdout or ():
-            GLib.idle_add(self.append_log, line)
+            GLib.idle_add(self.handle_install_output, line)
         process.wait()
         GLib.idle_add(self._install_done, process.returncode, "")
 
@@ -753,6 +822,7 @@ class ManagerWindow(Gtk.Window):
             self.append_log(f"無法執行安裝程式: {error}\n")
         if returncode == 0:
             self.append_log("安裝完成，正在重新檢查版本…\n")
+            self.show_progress("安裝完成，正在重新檢查版本…")
             # Hand off from installation to refresh(), which ignores busy requests.
             self.set_busy(False)
             self.refresh()
@@ -764,6 +834,8 @@ class ManagerWindow(Gtk.Window):
         else:
             message = f"安裝失敗（結束碼 {returncode}）"
         self.append_log(message + "\n")
+        self.show_progress(message, 0)
+        self.install_progress_active = False
         self.set_busy(False, message)
 
 

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import install
 
@@ -22,6 +22,48 @@ IDE_URL = (
 
 def download_page() -> str:
     return (FIXTURES / "download_page.html").read_text()
+
+
+class DownloadProgressTest(unittest.TestCase):
+    def run_download(self, data, headers):
+        response = io.BytesIO(data)
+        response.headers = headers
+        progress = Mock()
+        with TemporaryDirectory() as tmp, patch.object(install.urllib.request, "urlopen", return_value=response):
+            dest = Path(tmp) / "archive.tar.gz"
+            install.download(APP_URL, dest, progress)
+            self.assertEqual(dest.read_bytes(), data)
+        return progress
+
+    def test_download_reports_initial_and_final_bytes(self):
+        data = b"x" * 300000
+        progress = self.run_download(data, {"Content-Length": str(len(data))})
+        self.assertEqual(progress.call_args_list[0].args, (0, len(data)))
+        self.assertEqual(progress.call_args_list[-1].args, (len(data), len(data)))
+
+    def test_missing_or_invalid_length_is_unknown(self):
+        for headers in ({}, {"Content-Length": "invalid"}, {"Content-Length": "-1"}):
+            with self.subTest(headers=headers):
+                progress = self.run_download(b"abc", headers)
+                self.assertEqual(progress.call_args.args, (3, 0))
+
+    def test_truncated_download_fails(self):
+        response = io.BytesIO(b"abc")
+        response.headers = {"Content-Length": "10"}
+        with TemporaryDirectory() as tmp, patch.object(install.urllib.request, "urlopen", return_value=response):
+            with self.assertRaisesRegex(OSError, "Incomplete download"):
+                install.download(APP_URL, Path(tmp) / "archive", Mock())
+
+    def test_progress_protocol_is_opt_in_and_flushed(self):
+        with patch("builtins.print") as output:
+            install.emit_progress(False, "app", "extract")
+            output.assert_not_called()
+            install.emit_progress(True, "app", "download", received=1, total=2)
+            line = output.call_args.args[0]
+            self.assertTrue(line.startswith(install.PROGRESS_PREFIX))
+            self.assertEqual(install.json.loads(line[len(install.PROGRESS_PREFIX):]),
+                             dict(product="app", phase="download", received=1, total=2))
+            self.assertTrue(output.call_args.kwargs["flush"])
 
 
 class ProductConfigTest(unittest.TestCase):
