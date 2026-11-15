@@ -1,5 +1,7 @@
 # Antigravity Installer
 
+<img src="./antigravity-manager.svg" alt="Antigravity Manager — a blue-violet arch with an upward arrow" width="128" height="128">
+
 Small installer for Google Antigravity on Linux x64. It reads the current official download page, resolves the latest Linux x64 tarballs, and installs one or both products:
 
 - `app`: Antigravity 2.0 desktop app
@@ -71,7 +73,7 @@ curl -fsSL $BOOTSTRAP | sudo sh -s -- --force ide   # repair a damaged install
 `main` moves whenever this repo changes, so the one-line install runs whatever it holds at that moment. To run a fixed revision instead, pin the ref in both the URL and the environment, so `install.sh` fetches `install.py` from the same revision it came from:
 
 ```bash
-REF=v1.2.0   # any tag or commit SHA in this repo
+REF=v1.2.1   # any tag or commit SHA in this repo
 curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/$REF/install.sh \
   | sudo env ANTIGRAVITY_INSTALLER_REF=$REF sh
 ```
@@ -118,7 +120,7 @@ That writes:
 - `/usr/share/applications/antigravity-manager.desktop` — application-menu entry
 - `/usr/share/icons/hicolor/scalable/apps/antigravity-manager.svg` — menu icon
 
-`antigravity-manager.svg` is this repo's own icon, deliberately unlike the Antigravity product icons so the manager is not mistaken for the app in the menu. If it is missing, the desktop entry falls back to the stock `system-software-install` icon.
+`antigravity-manager.svg` is this repo's own icon: a blue-violet arch with an upward arrow formed by the space inside it, combining Antigravity's silhouette with the manager's upgrade function. Its distinct appearance helps distinguish the manager from the products in the application menu. If it is missing, the desktop entry falls back to the stock `system-software-install` icon.
 
 Without root the same paths move under `~/.local`. The copies are a snapshot; re-run `--install-gui` to refresh them.
 
