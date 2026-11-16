@@ -73,7 +73,7 @@ curl -fsSL $BOOTSTRAP | sudo sh -s -- --force ide   # repair a damaged install
 `main` moves whenever this repo changes, so the one-line install runs whatever it holds at that moment. To run a fixed revision instead, pin the ref in both the URL and the environment, so `install.sh` fetches `install.py` from the same revision it came from:
 
 ```bash
-REF=v1.2.1   # any tag or commit SHA in this repo
+REF=v1.3.0   # any tag or commit SHA in this repo
 curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/$REF/install.sh \
   | sudo env ANTIGRAVITY_INSTALLER_REF=$REF sh
 ```
@@ -126,17 +126,39 @@ Without root the same paths move under `~/.local`. The copies are a snapshot; re
 
 ### Updating the manager
 
-Updating App or IDE from the manager does not update the manager itself. To refresh its scripts, Logo, and desktop entry, run this from an updated clone for a system installation:
+Updating App or IDE from the manager does not update the manager itself. When a newer manager release is available, the GUI shows an update banner with a one-click update button (and restarts into the updated version once finished).
+
+You can also update directly with one command, without keeping a local clone:
 
 ```bash
-sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py --install-gui
+# Update only the system-wide manager
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh \
+  | sudo sh -s -- --install-gui
+
+# Update App, IDE, and the system-wide manager together
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh \
+  | sudo sh -s -- ide app --install-gui
+
+# Update only a user-local manager (~/.local, no sudo)
+curl -fsSL https://raw.githubusercontent.com/raybird/antigravity-installer/main/install.sh \
+  | sh -s -- --install-gui
 ```
 
-For a user-local manager, run `./install.py --install-gui` without `sudo`. The one-line `curl … | sudo sh -s -- --install-gui` command above also updates a system manager.
+From an updated local clone, run:
+
+```bash
+# System-wide manager
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py --install-gui
+
+# Or let install.py fetch the latest manager files itself
+sudo env ANTIGRAVITY_INSTALL_MODE=system ./install.py --update-manager
+```
+
+For a user-local manager from a clone, run `./install.py --install-gui` (or `./install.py --update-manager`) without `sudo`.
 
 When running `install.py` directly, `sudo` alone does not select system mode: without `ANTIGRAVITY_INSTALL_MODE=system`, it uses the invoking user's home, which under `sudo` may be root's home. The `install.sh` bootstrap selects the mode automatically.
 
-Close and reopen the manager after updating. If the dock still shows a generic gear or `gui.py`, see [manager icon troubleshooting](./KNOWN_ISSUES.md#manager-shows-a-gear-icon-or-guipy).
+Close and reopen the manager after updating (or click the restart button in the GUI). If the dock still shows a generic gear or `gui.py`, see [manager icon troubleshooting](./KNOWN_ISSUES.md#manager-shows-a-gear-icon-or-guipy).
 
 ### Runtime requirements
 

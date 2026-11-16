@@ -8,6 +8,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+import sys
 import tarfile
 import tempfile
 import time
@@ -16,6 +17,13 @@ import urllib.request
 from pathlib import Path
 
 
+MANAGER_VERSION = "1.3.0"
+MANAGER_REPO = os.environ.get("ANTIGRAVITY_INSTALLER_REPO", "raybird/antigravity-installer")
+MANAGER_REF = os.environ.get("ANTIGRAVITY_INSTALLER_REF", "main")
+MANAGER_BASE_URL = os.environ.get(
+    "ANTIGRAVITY_INSTALLER_BASE",
+    f"https://raw.githubusercontent.com/{MANAGER_REPO}/{MANAGER_REF}",
+)
 DOWNLOAD_PAGE = "https://antigravity.google/download"
 PROGRESS_PREFIX = "ANTIGRAVITY_PROGRESS "
 HOME = Path.home()
@@ -87,9 +95,9 @@ GUI_ICON = ICON_THEME / "scalable" / "apps" / GUI_ICON_FILE
 GUI_ICON_FALLBACK = "system-software-install"
 
 
-def fetch_text(url: str) -> str:
+def fetch_text(url: str, timeout: int = 60) -> str:
     req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(req, timeout=60) as res:
+    with urllib.request.urlopen(req, timeout=timeout) as res:
         data = res.read()
         if data.startswith(b"\x1f\x8b") or res.headers.get("Content-Encoding") == "gzip":
             data = gzip.decompress(data)
@@ -454,6 +462,82 @@ def install_gui() -> bool:
     return True
 
 
+def parse_manager_version(source: str) -> str | None:
+    """Extract MANAGER_VERSION from install.py source text."""
+    match = re.search(r'^MANAGER_VERSION\s*=\s*["\']([^"\']+)["\']', source, re.MULTILINE)
+    return match.group(1) if match else None
+
+
+def version_key(version: str) -> tuple[int, ...]:
+    """Convert a dotted version string into a comparable integer tuple."""
+    parts: list[int] = []
+    for piece in version.strip().lstrip("v").split("."):
+        digits = re.match(r"\d+", piece)
+        if not digits:
+            break
+        parts.append(int(digits.group(0)))
+    return tuple(parts)
+
+
+def check_manager_update() -> dict[str, object]:
+    """Compare the local manager version against the upstream repository."""
+    source_url = os.environ.get("ANTIGRAVITY_INSTALLER_SOURCE", f"{MANAGER_BASE_URL}/install.py")
+    latest = parse_manager_version(fetch_text(source_url, timeout=10))
+    update_available = bool(
+        latest and version_key(latest) > version_key(MANAGER_VERSION)
+    )
+    return {
+        "current": MANAGER_VERSION,
+        "latest": latest,
+        "update_available": update_available,
+    }
+
+
+def update_manager(progress: bool = False) -> bool:
+    """Download the latest manager files from upstream and install them."""
+    source_url = os.environ.get("ANTIGRAVITY_INSTALLER_SOURCE", f"{MANAGER_BASE_URL}/install.py")
+    gui_url = os.environ.get("ANTIGRAVITY_INSTALLER_GUI_SOURCE", f"{MANAGER_BASE_URL}/gui.py")
+    icon_url = os.environ.get("ANTIGRAVITY_INSTALLER_ICON_SOURCE", f"{MANAGER_BASE_URL}/{GUI_ICON_FILE}")
+
+    with tempfile.TemporaryDirectory(prefix="antigravity-manager-update.") as tmp:
+        tmp_path = Path(tmp)
+        required = [
+            ("install.py", source_url),
+            ("gui.py", gui_url),
+        ]
+        for filename, url in required:
+            dest = tmp_path / filename
+            print(f"Fetching {url}")
+            if progress:
+                download(url, dest, lambda received, total: emit_progress(
+                    True, "manager", "download", received=received, total=total,
+                ))
+            else:
+                download(url, dest)
+            first_line = dest.read_text(errors="replace").splitlines()[0:1]
+            if not first_line or first_line[0] != "#!/usr/bin/env python3":
+                raise SystemExit(f"Downloaded file is not {filename}: {url}")
+
+        icon_dest = tmp_path / GUI_ICON_FILE
+        try:
+            download(icon_url, icon_dest)
+            if "<svg" not in icon_dest.read_text(errors="replace"):
+                icon_dest.unlink()
+        except Exception:  # noqa: BLE001 - icon is optional
+            if icon_dest.exists():
+                icon_dest.unlink()
+            print(f"Warning: could not fetch {GUI_ICON_FILE}, falling back to a stock icon")
+
+        emit_progress(progress, "manager", "configure")
+        subprocess.run(
+            [sys.executable, str(tmp_path / "install.py"), "--install-gui"],
+            check=True,
+        )
+
+    emit_progress(progress, "manager", "done")
+    return True
+
+
 def installed_version(product: str) -> tuple[str, Path] | None:
     """Return the recorded version and its install root, in either install mode."""
     for root in install_roots(product):
@@ -510,6 +594,11 @@ def main() -> None:
         "desktop entry; can be combined with products",
     )
     parser.add_argument(
+        "--update-manager",
+        action="store_true",
+        help="download and install the latest Antigravity Manager GUI from GitHub",
+    )
+    parser.add_argument(
         "--progress-json", action="store_true",
         help="emit machine-readable progress events alongside installer output",
     )
@@ -534,10 +623,10 @@ def main() -> None:
             f"invalid product: {', '.join(unknown)} "
             f"(choose from {', '.join(sorted(PRODUCTS))})"
         )
-    if not args.products and not args.install_gui:
-        parser.error("name at least one product, or pass --install-gui")
-    if args.check and args.install_gui:
-        parser.error("--install-gui cannot be combined with --check")
+    if not args.products and not args.install_gui and not args.update_manager:
+        parser.error("name at least one product, or pass --install-gui or --update-manager")
+    if args.check and (args.install_gui or args.update_manager):
+        parser.error("--install-gui and --update-manager cannot be combined with --check")
 
     if os.uname().machine not in {"x86_64", "amd64"}:
         raise SystemExit(f"Unsupported architecture for this installer: {os.uname().machine}")
@@ -554,7 +643,9 @@ def main() -> None:
 
     installed = [install_product(product, page, force=args.force, progress=args.progress_json)
                  for product in args.products]
-    if args.install_gui:
+    if args.update_manager:
+        installed.append(update_manager(progress=args.progress_json))
+    elif args.install_gui:
         installed.append(install_gui())
     if not any(installed):
         return

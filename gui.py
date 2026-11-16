@@ -164,13 +164,22 @@ APP_CSS = """
 """
 
 
-def install_command(products, system_mode):
-    """Build the argv that installs the given products."""
-    base = [sys.executable, "-u", str(HERE / "install.py"), "--progress-json", *products]
+def _installer_command(args, system_mode):
+    base = [sys.executable, "-u", str(HERE / "install.py"), "--progress-json", *args]
     if not system_mode:
         return base
     # pkexec drops the environment, so the install mode is passed through env(1).
     return ["pkexec", "env", "ANTIGRAVITY_INSTALL_MODE=system", *base]
+
+
+def install_command(products, system_mode):
+    """Build the argv that installs the given products."""
+    return _installer_command(products, system_mode)
+
+
+def manager_update_command(system_mode):
+    """Build the argv that updates Antigravity Manager itself."""
+    return _installer_command(["--update-manager"], system_mode)
 
 
 class ManagerWindow(Gtk.Window):
@@ -190,6 +199,9 @@ class ManagerWindow(Gtk.Window):
         self.check_ready = False
         self.results = {}
         self.rows = {}
+        self.manager_update_info = None
+        self.manager_updated_pending_restart = False
+        self.active_install_kind = "products"
         self.progress_timer = None
         self.install_progress_active = False
         self.connect("destroy", lambda _window: self.stop_progress_pulse())
@@ -266,6 +278,29 @@ class ManagerWindow(Gtk.Window):
         summary_card.pack_start(self.summary_detail, False, False, 0)
         hero.pack_end(summary_card, False, False, 0)
         outer.pack_start(hero, False, False, 0)
+
+        self.manager_banner = Gtk.Frame()
+        self.manager_banner.set_shadow_type(Gtk.ShadowType.NONE)
+        self.manager_banner.get_style_context().add_class("target-card")
+        self.manager_banner.set_no_show_all(True)
+        self.manager_banner.set_visible(False)
+        banner_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        banner_row.set_border_width(8)
+        banner_icon = Gtk.Image.new_from_icon_name(
+            "software-update-available-symbolic",
+            Gtk.IconSize.MENU,
+        )
+        banner_row.pack_start(banner_icon, False, False, 0)
+        self.manager_banner_label = Gtk.Label(xalign=0)
+        self.manager_banner_label.set_line_wrap(True)
+        banner_row.pack_start(self.manager_banner_label, True, True, 0)
+        self.manager_update_button = Gtk.Button(label="更新管理器")
+        self.manager_update_button.get_style_context().add_class("suggested-action")
+        self.manager_update_button.connect("clicked", self.on_manager_update_clicked)
+        banner_row.pack_end(self.manager_update_button, False, False, 0)
+        banner_row.show_all()
+        self.manager_banner.add(banner_row)
+        outer.pack_start(self.manager_banner, False, False, 0)
 
         self.product_list = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         outer.pack_start(self.product_list, False, False, 0)
@@ -602,6 +637,8 @@ class ManagerWindow(Gtk.Window):
         else:
             self.all_button.set_label(f"安裝／更新 {len(actionable)} 個項目")
         self.all_button.set_sensitive(bool(actionable) and not self.busy)
+        if hasattr(self, "manager_update_button"):
+            self.manager_update_button.set_sensitive(not self.busy)
         for product, row in self.rows.items():
             row["action"].set_sensitive(
                 product in actionable and not self.busy
@@ -666,7 +703,8 @@ class ManagerWindow(Gtk.Window):
             return
         try:
             event = json.loads(line[len(install.PROGRESS_PREFIX):])
-            name = install.PRODUCTS[event["product"]]["name"]
+            product = event["product"]
+            name = "Antigravity Manager" if product == "manager" else install.PRODUCTS[product]["name"]
             phase = event["phase"]
             if phase == "download":
                 received = max(0, int(event["received"]))
@@ -722,7 +760,11 @@ class ManagerWindow(Gtk.Window):
         except (Exception, SystemExit) as error:  # noqa: BLE001 - surfaced in the UI
             GLib.idle_add(self._check_failed, str(error))
             return
-        GLib.idle_add(self._check_done, results)
+        try:
+            manager_info = install.check_manager_update()
+        except Exception:  # noqa: BLE001 - optional self-update check must not fail product checks
+            manager_info = None
+        GLib.idle_add(self._check_done, results, manager_info)
 
     def _check_failed(self, message):
         if self.install_progress_active:
@@ -739,13 +781,15 @@ class ManagerWindow(Gtk.Window):
         self.update_summary()
         self.set_busy(False, "檢查失敗，請檢查網路後重新檢查")
 
-    def _check_done(self, results):
+    def _check_done(self, results, manager_info=None):
         if self.install_progress_active:
             self.show_progress("安裝完成，已重新檢查版本", 1)
             self.install_progress_active = False
         self.results = results
+        self.manager_update_info = manager_info
         self.check_ready = True
         self.update_target_view()
+        self.update_manager_banner()
         self.set_busy(
             False,
             "全部已是最新"
@@ -753,12 +797,29 @@ class ManagerWindow(Gtk.Window):
             else f"{len(self.actionable_products())} 個項目可安裝或更新",
         )
 
+    def update_manager_banner(self):
+        if self.manager_updated_pending_restart:
+            self.manager_banner_label.set_text("Antigravity Manager 已更新至最新版本，重新啟動即可使用新版介面。")
+            self.manager_update_button.set_label("重新啟動管理器")
+            self.manager_banner.set_visible(True)
+            return
+        info = self.manager_update_info or {}
+        if info.get("update_available"):
+            current = info.get("current", "")
+            latest = info.get("latest", "")
+            self.manager_banner_label.set_text(
+                f"發現新版 Antigravity Manager（目前 v{current} → 最新 v{latest}）"
+            )
+            self.manager_update_button.set_label("立即更新管理器")
+            self.manager_banner.set_visible(True)
+            return
+        self.manager_banner.set_visible(False)
+
     # -- install ---------------------------------------------------------
 
-    def confirm_system_install(self, products):
+    def confirm_system_action(self, heading, secondary):
         if not self.system_mode:
             return True
-        names = "、".join(install.PRODUCTS[product]["name"] for product in products)
         dialog = Gtk.MessageDialog(
             transient_for=self,
             modal=True,
@@ -766,15 +827,46 @@ class ManagerWindow(Gtk.Window):
             buttons=Gtk.ButtonsType.NONE,
         )
         dialog.set_title("確認系統安裝")
-        dialog.set_markup(f"要將 {names} 安裝到系統範圍嗎？")
-        dialog.format_secondary_text(
-            "接下來會出現系統管理員授權視窗，安裝位置為 /opt。"
-        )
+        dialog.set_markup(heading)
+        dialog.format_secondary_text(secondary)
         dialog.add_button("取消", Gtk.ResponseType.CANCEL)
         dialog.add_button("繼續", Gtk.ResponseType.OK)
         response = dialog.run()
         dialog.destroy()
         return response == Gtk.ResponseType.OK
+
+    def confirm_system_install(self, products):
+        names = "、".join(install.PRODUCTS[product]["name"] for product in products)
+        return self.confirm_system_action(
+            f"要將 {names} 安裝到系統範圍嗎？",
+            "接下來會出現系統管理員授權視窗，安裝位置為 /opt。",
+        )
+
+    def restart_manager(self):
+        self.stop_progress_pulse()
+        os.execv(sys.executable, [sys.executable, str(HERE / "gui.py")])
+
+    def on_manager_update_clicked(self, _button):
+        if self.manager_updated_pending_restart:
+            self.restart_manager()
+            return
+        if self.busy:
+            return
+        if not self.confirm_system_action(
+            "要將 Antigravity Manager 更新到系統範圍嗎？",
+            "接下來會出現系統管理員授權視窗，將更新系統內的管理器檔案與桌面捷徑。",
+        ):
+            self.status_bar.set_text("已取消更新管理器")
+            return
+
+        command = manager_update_command(self.system_mode)
+        self.active_install_kind = "manager"
+        self.append_log(f"\n開始更新 Antigravity Manager\n$ {shlex.join(command)}\n")
+        self.set_busy(True, "正在更新 Antigravity Manager，請稍候…")
+        self.install_progress_active = True
+        self.stop_progress_pulse()
+        self.show_progress("等待系統授權…" if self.system_mode else "正在準備更新管理器…")
+        self.run_in_thread(lambda: self._install_worker(command))
 
     def on_install_clicked(self, _button, products):
         if self.busy:
@@ -792,6 +884,7 @@ class ManagerWindow(Gtk.Window):
             return
 
         command = install_command(targets, self.system_mode)
+        self.active_install_kind = "products"
         names = "、".join(install.PRODUCTS[product]["name"] for product in targets)
         self.append_log(f"\n開始安裝：{names}\n$ {shlex.join(command)}\n")
         self.set_busy(True, f"正在安裝 {names}，請稍候…")
@@ -818,10 +911,16 @@ class ManagerWindow(Gtk.Window):
         GLib.idle_add(self._install_done, process.returncode, "")
 
     def _install_done(self, returncode, error):
+        kind = getattr(self, "active_install_kind", "products")
+        self.active_install_kind = "products"
         if error:
             self.append_log(f"無法執行安裝程式: {error}\n")
         if returncode == 0:
-            self.append_log("安裝完成，正在重新檢查版本…\n")
+            if kind == "manager":
+                self.manager_updated_pending_restart = True
+                self.append_log("Antigravity Manager 已更新，請重新啟動管理器以套用新版。\n")
+            else:
+                self.append_log("安裝完成，正在重新檢查版本…\n")
             self.show_progress("安裝完成，正在重新檢查版本…")
             # Hand off from installation to refresh(), which ignores busy requests.
             self.set_busy(False)

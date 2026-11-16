@@ -15,7 +15,8 @@ def manager_methods():
                   if isinstance(node, ast.ClassDef) and node.name == "ManagerWindow")
     methods = [node for node in window.body
                if isinstance(node, ast.FunctionDef)
-               and node.name in {"refresh", "_install_done", "handle_install_output",
+               and node.name in {"refresh", "_check_done", "update_manager_banner",
+                                 "_install_done", "handle_install_output",
                                  "show_progress", "pulse_progress", "stop_progress_pulse"}]
     namespace = {"PRODUCT_ORDER": ["app", "ide"], "install": install, "json": json,
                  "GLib": Mock()}
@@ -96,6 +97,65 @@ class ProgressDisplayTest(unittest.TestCase):
         for text in ("正在下載", "正在解壓縮"):
             self.methods["show_progress"](window, text)
         self.methods["GLib"].timeout_add.assert_called_once_with(100, window.pulse_progress)
+
+    def test_manager_progress_event_uses_manager_display_name(self):
+        self.send(dict(product="manager", phase="download", received=524288, total=1048576))
+        text, fraction = self.window.show_progress.call_args.args
+        self.assertIn("Antigravity Manager", text)
+        self.assertIn("50%", text)
+        self.assertEqual(fraction, 0.5)
+
+
+class ManagerSelfUpdateGuiTest(unittest.TestCase):
+    def setUp(self):
+        self.methods = manager_methods()
+
+    def test_manager_update_completion_marks_pending_restart(self):
+        window = SimpleNamespace(
+            busy=True,
+            active_install_kind="manager",
+            manager_updated_pending_restart=False,
+            append_log=Mock(),
+            show_progress=Mock(),
+            set_row_state=Mock(),
+            update_summary=Mock(),
+            run_in_thread=Mock(),
+            _check_worker=Mock(),
+            rows={product: {field: Mock() for field in ("installed", "latest", "path")}
+                  for product in ("app", "ide")},
+        )
+        window.set_busy = lambda busy, message="": setattr(window, "busy", busy)
+        window.refresh = lambda: self.methods["refresh"](window)
+
+        self.methods["_install_done"](window, 0, "")
+
+        self.assertTrue(window.manager_updated_pending_restart)
+        self.assertEqual(window.active_install_kind, "products")
+        window.run_in_thread.assert_called_once_with(window._check_worker)
+
+    def test_banner_shows_update_available_then_restart_after_update(self):
+        window = SimpleNamespace(
+            install_progress_active=False,
+            manager_updated_pending_restart=False,
+            manager_update_info=None,
+            manager_banner=Mock(),
+            manager_banner_label=Mock(),
+            manager_update_button=Mock(),
+            update_target_view=Mock(),
+            actionable_products=Mock(return_value=[]),
+            set_busy=Mock(),
+        )
+        window.update_manager_banner = lambda: self.methods["update_manager_banner"](window)
+
+        self.methods["_check_done"](
+            window, {}, {"current": "1.3.0", "latest": "1.4.0", "update_available": True},
+        )
+        window.manager_banner.set_visible.assert_called_with(True)
+        window.manager_update_button.set_label.assert_called_with("立即更新管理器")
+
+        window.manager_updated_pending_restart = True
+        self.methods["update_manager_banner"](window)
+        window.manager_update_button.set_label.assert_called_with("重新啟動管理器")
 
 
 if __name__ == "__main__":

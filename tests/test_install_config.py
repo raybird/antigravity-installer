@@ -429,5 +429,73 @@ class ExtractDownloadVersionTest(unittest.TestCase):
         self.assertEqual(install.extract_download_version(url), "unknown")
 
 
+class ManagerSelfUpdateTest(unittest.TestCase):
+    def test_parses_and_compares_manager_versions(self):
+        self.assertEqual(
+            install.parse_manager_version('#!/usr/bin/env python3\nMANAGER_VERSION = "1.4.0"\n'),
+            "1.4.0",
+        )
+        self.assertIsNone(install.parse_manager_version("print('hi')\n"))
+        self.assertGreater(install.version_key("1.10.0"), install.version_key("1.3.0"))
+
+    def test_check_manager_update_detects_newer_version(self):
+        with patch.object(install, "MANAGER_VERSION", "1.3.0"), \
+             patch.object(install, "fetch_text", return_value='MANAGER_VERSION = "1.4.0"\n'):
+            info = install.check_manager_update()
+        self.assertEqual(info, {"current": "1.3.0", "latest": "1.4.0", "update_available": True})
+
+    def test_check_manager_update_reports_up_to_date_or_unparseable(self):
+        with patch.object(install, "MANAGER_VERSION", "1.3.0"), \
+             patch.object(install, "fetch_text", return_value='MANAGER_VERSION = "1.3.0"\n'):
+            self.assertFalse(install.check_manager_update()["update_available"])
+
+        with patch.object(install, "fetch_text", return_value="invalid"):
+            info = install.check_manager_update()
+        self.assertIsNone(info["latest"])
+        self.assertFalse(info["update_available"])
+
+    def test_update_manager_downloads_files_and_runs_install_gui(self):
+        def fake_download(url, dest, progress=None):
+            if url.endswith("install.py") or url.endswith("gui.py"):
+                dest.write_text("#!/usr/bin/env python3\n")
+            elif url.endswith(".svg"):
+                dest.write_text("<svg></svg>")
+            if progress:
+                progress(10, 10)
+
+        with patch.object(install, "download", side_effect=fake_download), \
+             patch.object(install.subprocess, "run") as run_mock, \
+             patch("builtins.print") as print_mock:
+            self.assertTrue(install.update_manager(progress=True))
+
+        cmd = run_mock.call_args.args[0]
+        self.assertEqual(cmd[-1], "--install-gui")
+        self.assertTrue(cmd[1].endswith("install.py"))
+        progress_lines = [
+            c.args[0] for c in print_mock.call_args_list
+            if c.args and str(c.args[0]).startswith(install.PROGRESS_PREFIX)
+        ]
+        self.assertTrue(any('"product": "manager"' in line for line in progress_lines))
+
+    def test_update_manager_rejects_non_python_download(self):
+        def fake_download(_url, dest, progress=None):
+            dest.write_text("<html>502 Bad Gateway</html>")
+
+        with patch.object(install, "download", side_effect=fake_download):
+            with self.assertRaisesRegex(SystemExit, "Downloaded file is not install.py"):
+                install.update_manager()
+
+    def test_cli_update_manager_skips_download_page(self):
+        with patch.object(install.sys, "argv", ["install.py", "--update-manager"]), \
+             patch.object(install.os, "uname", return_value=SimpleNamespace(machine="x86_64")), \
+             patch.object(install, "fetch_text") as fetch_mock, \
+             patch.object(install, "update_manager", return_value=True) as update_mock, \
+             patch.object(install.shutil, "which", return_value=None):
+            install.main()
+
+        fetch_mock.assert_not_called()
+        update_mock.assert_called_once_with(progress=False)
+
+
 if __name__ == "__main__":
     unittest.main()
